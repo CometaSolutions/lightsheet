@@ -29,10 +29,19 @@ export default class LightsheetHelper {
     return index;
   }
 
-  static getKeyPairFor = (cellGroup: CellGroup<ColumnKey | RowKey>, opposingKey: ColumnKey | RowKey): PositionInfo => {
+  static getKeyPairFor = (
+    cellGroup: CellGroup<ColumnKey | RowKey>,
+    opposingKey: ColumnKey | RowKey,
+  ): PositionInfo => {
     return {
-      columnKey: CellGroup instanceof Column ? cellGroup.key as ColumnKey : opposingKey as ColumnKey,
-      rowKey: CellGroup instanceof Column ? opposingKey as RowKey : cellGroup.key as RowKey,
+      columnKey:
+        cellGroup instanceof Column
+          ? (cellGroup.key as ColumnKey)
+          : (opposingKey as ColumnKey),
+      rowKey:
+        cellGroup instanceof Column
+          ? (opposingKey as RowKey)
+          : (cellGroup.key as RowKey),
     };
-  }
+  };
 }
