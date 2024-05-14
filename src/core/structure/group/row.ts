@@ -6,7 +6,11 @@ export default class Row extends CellGroup<RowKey> {
   cellIndex: Map<ColumnKey, CellKey>;
   cellFormatting: Map<ColumnKey, CellStyle>;
 
-  constructor(width: number, position: number, name: string | undefined = undefined) {
+  constructor(
+    width: number,
+    position: number,
+    name: string | undefined = undefined,
+  ) {
     super(width, position, name);
     this.key = generateRowKey();
     this.cellIndex = new Map<ColumnKey, CellKey>();
@@ -18,6 +22,6 @@ export default class Row extends CellGroup<RowKey> {
   }
 
   generateName(): string {
-    return `${this.position + 1}`
+    return `${this.position + 1}`;
   }
 }

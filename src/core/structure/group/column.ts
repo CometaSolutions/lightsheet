@@ -12,7 +12,11 @@ export default class Column extends CellGroup<ColumnKey> {
   cellIndex: Map<RowKey, CellKey>;
   cellFormatting: Map<RowKey, CellStyle>;
 
-  constructor(width: number, position: number, name: string | undefined = undefined) {
+  constructor(
+    width: number,
+    position: number,
+    name: string | undefined = undefined,
+  ) {
     super(width, position, name);
     this.key = generateColumnKey();
     this.cellIndex = new Map<RowKey, CellKey>();
@@ -23,7 +27,7 @@ export default class Column extends CellGroup<ColumnKey> {
     return this.size_;
   }
 
-  generateName() : string {
-    return LightsheetHelper.generateColumnLabel(this.position);
+  generateName(): string {
+    return LightsheetHelper.generateColumnLabel(this.position + 1);
   }
 }

@@ -20,5 +20,5 @@ export default abstract class CellGroup<TKey extends ColumnKey | RowKey> {
     this.cellFormatting = new Map<ColumnKey | RowKey, CellStyle>();
   }
 
-  abstract generateName() : string;
+  abstract generateName(): string;
 }
