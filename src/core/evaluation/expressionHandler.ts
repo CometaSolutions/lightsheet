@@ -195,7 +195,6 @@ export default class ExpressionHandler {
       symbol = parts[1];
     }
 
-    // TODO only handling references within one sheet for now.
     if (symbol.includes(":")) {
       const rangeParts = symbol.split(":").filter((s) => s !== "");
       if (rangeParts.length != 2) throw new Error("Invalid range: " + symbol);
