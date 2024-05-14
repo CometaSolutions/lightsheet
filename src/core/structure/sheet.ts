@@ -21,6 +21,7 @@ import { EvaluationResult } from "../evaluation/expressionHandler.types.ts";
 import SheetHolder from "./sheetHolder.ts";
 import { CellReference } from "./cell/types.cell.ts";
 import { Coordinate } from "../../utils/common.types.ts";
+import LightsheetHelper from "../../utils/helpers.ts";
 
 export default class Sheet {
   readonly key: SheetKey;
@@ -219,12 +220,11 @@ export default class Sheet {
     const lastPosition = Math.max(...targetPositions.keys());
 
     if (groupKey !== undefined) {
-      const group = target.get(groupKey);
+      const group = target.get(groupKey)!;
       // Delete all cells in this group.
-      for (const [oppositeKey] of group!.cellIndex) {
-        group instanceof Column
-          ? this.deleteCell(groupKey as ColumnKey, oppositeKey as RowKey)
-          : this.deleteCell(oppositeKey as ColumnKey, groupKey as RowKey);
+      for (const [oppositeKey] of group.cellIndex) {
+        const keyPair = LightsheetHelper.getKeyPairFor(group, oppositeKey);
+        this.deleteCell(keyPair.columnKey!, keyPair.rowKey!);
       }
     }
 
@@ -489,11 +489,8 @@ export default class Sheet {
       if (!shouldClear) continue;
 
       // The cell's style will have no properties after applying this group's new style; clear it.
-      if (group instanceof Column) {
-        this.clearCellStyle(group.key, opposingKey as RowKey);
-        continue;
-      }
-      this.clearCellStyle(opposingKey as ColumnKey, group.key as RowKey);
+      const keyPair = LightsheetHelper.getKeyPairFor(group, opposingKey);
+      this.clearCellStyle(keyPair.columnKey!, keyPair.rowKey!);
     }
 
     if (!formatterChanged) return;
@@ -501,15 +498,8 @@ export default class Sheet {
     // Apply new formatter to all cells in this group.
     for (const [opposingKey] of group.cellIndex) {
       const cell = this.cellData.get(group.cellIndex.get(opposingKey)!)!;
-      if (group instanceof Column) {
-        this.applyCellFormatter(cell, group.key, opposingKey as RowKey);
-        continue;
-      }
-      this.applyCellFormatter(
-        cell,
-        opposingKey as ColumnKey,
-        group.key as RowKey,
-      );
+      const keyPair = LightsheetHelper.getKeyPairFor(group, opposingKey);
+      this.applyCellFormatter(cell, keyPair.columnKey!, keyPair.rowKey!);
     }
   }
 
