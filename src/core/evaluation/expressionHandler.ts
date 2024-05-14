@@ -71,18 +71,21 @@ export default class ExpressionHandler {
       return { value: this.rawValue, references: [] };
 
     const expression = this.rawValue.substring(1);
+    let parsed;
     try {
-      const parsed = math.parse(expression);
+      parsed = math.parse(expression);
       parsed.transform((node) =>
         this.injectFunctionParameter(node, this.targetCellRef),
       );
-
-      const value = parsed.evaluate().toString();
-      const references = this.cellRefHolder.slice();
-      this.cellRefHolder = [];
-      return { value: value, references: references };
     } catch (e) {
-      return null;
+      return null; // Expression syntax is invalid.
+    }
+
+    try {
+      const value = parsed!.evaluate().toString();
+      return { value: value, references: this.cellRefHolder };
+    } catch (e) {
+      return { references: this.cellRefHolder }; // Expression syntax is valid - return resolved references.
     }
   }
 

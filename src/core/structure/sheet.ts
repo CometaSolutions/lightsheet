@@ -600,16 +600,30 @@ export default class Sheet {
     );
     const evalResult = expressionHandler.evaluate();
     const prevState = cell.state;
+
     if (!evalResult) {
+      // Expression can't be parsed - "=1+" etc.
       cell.setState(CellState.INVALID_EXPRESSION);
-      return prevState == CellState.OK; // Consider the cell's value changed if its state changes from OK to invalid.
+      // Consider the cell's value changed if its state changes from OK to invalid.
+      return prevState == CellState.OK;
     }
 
-    cell.setState(CellState.OK);
-
     const valueChanged = cell.resolvedValue != evalResult.value;
+    const newState = this.processEvaluationReferences(
+      cell,
+      colKey,
+      rowKey,
+      evalResult,
+    );
+
+    if (evalResult.value == undefined) {
+      // Expression was parsed, but value can't be resolved due to invalid operations/symbols.
+      cell.setState(CellState.INVALID_EXPRESSION); // TODO This error could be distinct.
+      return prevState == CellState.OK;
+    }
+
     cell.resolvedValue = evalResult.value;
-    this.processEvaluationReferences(cell, colKey, rowKey, evalResult);
+    cell.setState(newState);
 
     // If the value of the cell hasn't changed, there's no need to update cells that reference this cell.
     if (!valueChanged && cell.state == CellState.OK) return valueChanged;
@@ -683,7 +697,7 @@ export default class Sheet {
     columnKey: ColumnKey,
     rowKey: RowKey,
     evalResult: EvaluationResult,
-  ) {
+  ): CellState {
     // Update referencesOut of this cell and referencesIn of newly referenced cells.
     const oldOut = new Map<CellKey, CellReference>(cell.referencesOut);
     cell.referencesOut.clear();
@@ -736,8 +750,9 @@ export default class Sheet {
 
     // After references are updated, check for circular references.
     if (evalResult.references.length && this.hasCircularReference(cell)) {
-      cell.setState(CellState.CIRCULAR_REFERENCE);
+      return CellState.CIRCULAR_REFERENCE;
     }
+    return CellState.OK;
   }
 
   private hasCircularReference(cell: Cell): boolean {

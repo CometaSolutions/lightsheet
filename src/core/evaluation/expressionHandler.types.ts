@@ -7,6 +7,6 @@ export type CellSheetPosition = {
 };
 
 export type EvaluationResult = {
-  value: string;
+  value?: string;
   references: CellSheetPosition[];
 };
