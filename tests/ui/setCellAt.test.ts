@@ -23,10 +23,10 @@ describe("Lightsheet setCellAt", () => {
   });
 
   it("Should set the cell and use col and row keys", () => {
-    const cellInfo = lightSheet.setCellAt(1, 1, "test");
+    lightSheet.setCellAt(1, 1, "test");
 
     //Query the HTML via document else it will not be able to find the element
-    const cellId = cellInfo.position.columnKey + "_" + cellInfo.position.rowKey;
+    const cellId = `${lightSheet.getName()}_1_1`;
     const cellElement = document.getElementById(cellId);
 
     const cellInput = cellElement?.children[0] as HTMLInputElement;
