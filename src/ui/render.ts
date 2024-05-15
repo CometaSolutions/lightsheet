@@ -219,7 +219,7 @@ export default class UI {
     const rowCount = this.getRowCount();
     for (let rowIndex = 0; rowIndex < rowCount; rowIndex++) {
       const rowDom = this.tableBodyDom.children[rowIndex];
-      this.addCell(rowDom, newColumnNumber - 1, rowIndex, "");
+      this.addCell(rowDom, newColumnNumber - 1, rowIndex);
     }
 
     this.tableHeadDom.children[0].appendChild(headerCellDom);
@@ -253,7 +253,7 @@ export default class UI {
 
     const columnCount = this.getColumnCount();
     for (let columnIndex = 0; columnIndex < columnCount; columnIndex++) {
-      this.addCell(rowDom, columnIndex, rowCount, "");
+      this.addCell(rowDom, columnIndex, rowCount);
     }
     return rowDom;
   }
@@ -302,13 +302,7 @@ export default class UI {
     return document.getElementById(rowKey);
   }
 
-  addCell(
-    rowDom: Element,
-    colIndex: number,
-    rowIndex: number,
-    value: any,
-    columnKey?: string,
-  ): HTMLElement {
+  addCell(rowDom: Element, colIndex: number, rowIndex: number): HTMLElement {
     const cellDom = document.createElement("td");
     cellDom.classList.add(
       "lightsheet_table_cell",
@@ -317,19 +311,11 @@ export default class UI {
     );
     rowDom.appendChild(cellDom);
     cellDom.id = this.getIndexedCellId(colIndex, rowIndex);
-    cellDom.setAttribute("column-index", `${colIndex}` || "");
-    cellDom.setAttribute("row-index", `${rowIndex}` || "");
 
     const inputDom = document.createElement("input");
     inputDom.classList.add("lightsheet_table_cell_input");
-    inputDom.value = "";
     inputDom.readOnly = this.isReadOnly;
     cellDom.appendChild(inputDom);
-
-    if (value) {
-      cellDom.id = `${columnKey}_${rowDom.id}`;
-      inputDom.value = value;
-    }
 
     inputDom.addEventListener("input", (e: Event) => {
       const newValue = (e.target as HTMLInputElement).value;
@@ -410,7 +396,7 @@ export default class UI {
 
   onUICellValueChange(rawValue: string, colIndex: number, rowIndex: number) {
     const payload: UISetCellPayload = {
-      indexPosition: { column: colIndex, row: rowIndex },
+      position: { column: colIndex, row: rowIndex },
       rawValue,
     };
     this.events.emit(new LightsheetEvent(EventType.UI_SET_CELL, payload));
@@ -425,67 +411,26 @@ export default class UI {
   private onCoreSetCell(event: LightsheetEvent) {
     const payload = event.payload as CoreSetCellPayload;
     // Create new columns if the column index is greater than the current column count.
-    const newColumns = payload.indexPosition.column - this.getColumnCount() + 1;
+    const newColumns = payload.position.column - this.getColumnCount() + 1;
     for (let i = 0; i < newColumns; i++) {
       this.addColumn();
     }
 
-    const newRows = payload.indexPosition.row - this.getRowCount() + 1;
+    const newRows = payload.position.row - this.getRowCount() + 1;
     for (let i = 0; i < newRows; i++) {
       this.addRow();
     }
 
-    // Get HTML elements and (new) IDs for the payload's cell and row.
-    const elInfo = this.getElementInfoForSetCell(payload);
-
-    elInfo.cellDom!.id = elInfo.cellDomId;
-    elInfo.rowDom!.id = elInfo.rowDomId;
+    const cellDom = document.getElementById(
+      this.getIndexedCellId(payload.position.column, payload.position.row),
+    )!;
 
     // Update input element with values from the core.
-    const inputEl = elInfo.cellDom!.firstChild! as HTMLInputElement;
+    const inputEl = cellDom.firstChild! as HTMLInputElement;
     inputEl.setAttribute("rawValue", payload.rawValue);
     inputEl.setAttribute("resolvedValue", payload.formattedValue);
     inputEl.value = payload.formattedValue;
   }
-
-  private getElementInfoForSetCell = (payload: CoreSetCellPayload) => {
-    const colKey = payload.keyPosition.columnKey?.toString();
-    const rowKey = payload.keyPosition.rowKey?.toString();
-
-    const columnIndex = payload.indexPosition.column;
-    const rowIndex = payload.indexPosition.row;
-
-    const cellDomKey =
-      colKey && rowKey ? `${colKey!.toString()}_${rowKey!.toString()}` : null;
-
-    // Get the cell by either column and row key or position.
-    const cellDom =
-      (cellDomKey && document.getElementById(cellDomKey)) ||
-      document.getElementById(this.getIndexedCellId(columnIndex, rowIndex));
-
-    const newCellDomId = payload.clearCell
-      ? this.getIndexedCellId(columnIndex, rowIndex)
-      : `${colKey}_${rowKey}`;
-
-    const newRowDomId = payload.clearRow
-      ? this.getIndexedRowId(rowIndex)
-      : rowKey!;
-
-    let rowDom: HTMLElement | null = null;
-    if (rowKey) {
-      rowDom = document.getElementById(rowKey);
-    }
-    if (!rowDom) {
-      rowDom = document.getElementById(this.getIndexedRowId(rowIndex));
-    }
-
-    return {
-      cellDom: cellDom,
-      cellDomId: newCellDomId,
-      rowDom: rowDom,
-      rowDomId: newRowDomId,
-    };
-  };
 
   getColumnCount() {
     return this.tableHeadDom.children[0].children.length - 1;
@@ -547,21 +492,19 @@ export default class UI {
       return false;
     }
 
-    const cellColumnIndex = Number(cell.getAttribute("column-index"));
-    const cellRowIndex = Number(cell.getAttribute("row-index"));
-
-    if (cellColumnIndex === undefined || cellRowIndex === undefined)
-      return false;
+    const cellCoordinate = cell.id.split("_").slice(-2);
+    const columnIndex = Number(cellCoordinate[0]);
+    const rowIndex = Number(cellCoordinate[1]);
+    if (columnIndex === undefined || rowIndex === undefined) return false;
 
     const withinX =
-      (cellColumnIndex >= selectionStart.column &&
-        cellColumnIndex <= selectionEnd.column) ||
-      (cellColumnIndex <= selectionStart.column &&
-        cellColumnIndex >= selectionEnd.column);
+      (columnIndex >= selectionStart.column &&
+        columnIndex <= selectionEnd.column) ||
+      (columnIndex <= selectionStart.column &&
+        columnIndex >= selectionEnd.column);
     const withinY =
-      (cellRowIndex >= selectionStart.row &&
-        cellRowIndex <= selectionEnd.row) ||
-      (cellRowIndex <= selectionStart.row && cellRowIndex >= selectionEnd.row);
+      (rowIndex >= selectionStart.row && rowIndex <= selectionEnd.row) ||
+      (rowIndex <= selectionStart.row && rowIndex >= selectionEnd.row);
 
     return withinX && withinY;
   }

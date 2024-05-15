@@ -99,7 +99,7 @@ export default class Sheet {
       this.resolveCell(cell!, colKey, rowKey);
     }
 
-    this.emitSetCellEvent(colKey, rowKey, colIndex, rowIndex, cell);
+    this.emitSetCellEvent(colIndex, rowIndex, cell);
 
     return {
       rawValue: cell ? cell.rawValue : undefined,
@@ -364,8 +364,6 @@ export default class Sheet {
 
       // Emit event for the rawValue change.
       refSheet.emitSetCellEvent(
-        refInfo.column,
-        refInfo.row,
         refSheet.getColumnIndex(refInfo.column)!,
         refSheet.getRowIndex(refInfo.row)!,
         refCell,
@@ -644,8 +642,6 @@ export default class Sheet {
       // Emit event if the referred cell's value has changed (for the referring sheet's events).
       if (refUpdated) {
         referringSheet.emitSetCellEvent(
-          refInfo.column,
-          refInfo.row,
           referringSheet.getColumnIndex(refInfo.column)!,
           referringSheet.getRowIndex(refInfo.row)!,
           referringCell,
@@ -804,26 +800,16 @@ export default class Sheet {
     return { rowKey: rowKey, columnKey: colKey };
   }
 
-  private emitSetCellEvent(
-    colKey: ColumnKey,
-    rowKey: RowKey,
-    colPos: number,
-    rowPos: number,
-    cell: Cell | null,
-  ) {
+  private emitSetCellEvent(colPos: number, rowPos: number, cell: Cell | null) {
     const payload: CoreSetCellPayload = {
-      keyPosition: {
-        rowKey: rowKey,
-        columnKey: colKey,
-      },
-      indexPosition: {
+      position: {
         column: colPos,
         row: rowPos,
       },
       rawValue: cell ? cell.rawValue : "",
       formattedValue: cell ? cell.formattedValue : "",
       clearCell: cell == null,
-      clearRow: this.rows.get(rowKey) == null,
+      clearRow: this.rowPositions.get(rowPos) == null,
     };
 
     this.events.emit(new LightsheetEvent(EventType.CORE_SET_CELL, payload));
@@ -837,23 +823,10 @@ export default class Sheet {
 
   private handleUISetCell(event: LightsheetEvent) {
     const payload = event.payload as UISetCellPayload;
-    // Use either setCellAt or setCell depending on what information is provided.
-    if (payload.keyPosition) {
-      this.setCell(
-        payload.keyPosition.columnKey!,
-        payload.keyPosition.rowKey!,
-        payload.rawValue,
-      );
-    } else if (payload.indexPosition) {
-      this.setCellAt(
-        payload.indexPosition.column,
-        payload.indexPosition.row,
-        payload.rawValue,
-      );
-    } else {
-      throw new Error(
-        "Invalid event payload for UI_SET_CELL: no position info provided.",
-      );
-    }
+    this.setCellAt(
+      payload.position.column,
+      payload.position.row,
+      payload.rawValue,
+    );
   }
 }
