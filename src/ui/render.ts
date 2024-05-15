@@ -12,6 +12,7 @@ import { Coordinate } from "../utils/common.types.ts";
 import Events from "../core/event/events.ts";
 
 export default class UI {
+  // TODO Revise fields. Some can probably be discarded with IDs always containing position.
   tableEl!: Element;
   toolbarDom: HTMLElement | undefined;
   formulaBarDom!: HTMLElement | null;
