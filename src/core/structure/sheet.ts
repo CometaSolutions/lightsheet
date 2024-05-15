@@ -598,35 +598,42 @@ export default class Sheet {
       { sheetKey: this.key, column: colKey, row: rowKey },
       cell.rawValue,
     );
+
     const evalResult = expressionHandler.evaluate();
     const prevState = cell.state;
+    const prevValue = cell.resolvedValue;
 
-    if (!evalResult) {
-      // Expression can't be parsed - "=1+" etc.
-      cell.setState(CellState.INVALID_EXPRESSION);
-      // Consider the cell's value changed if its state changes from OK to invalid.
-      return prevState == CellState.OK;
+    let newState = evalResult ? CellState.OK : CellState.INVALID_EXPRESSION;
+
+    this.processEvaluationReferences(cell, colKey, rowKey, evalResult);
+    // After references are updated, check for circular references.
+    if (evalResult?.references && this.hasCircularReference(cell)) {
+      newState = CellState.CIRCULAR_REFERENCE;
     }
 
-    const valueChanged = cell.resolvedValue != evalResult.value;
-    const newState = this.processEvaluationReferences(
-      cell,
-      colKey,
-      rowKey,
-      evalResult,
-    );
-
-    if (evalResult.value == undefined) {
-      // Expression was parsed, but value can't be resolved due to invalid operations/symbols.
-      cell.setState(CellState.INVALID_EXPRESSION); // TODO This error could be distinct.
-      return prevState == CellState.OK;
+    if (evalResult) {
+      if (evalResult.value == undefined) {
+        // Expression was parsed, but value can't be resolved due to invalid operations/symbols.
+        newState = CellState.INVALID_EXPRESSION; // TODO This error could be distinct.
+      } else {
+        cell.resolvedValue = evalResult.value;
+      }
     }
 
-    cell.resolvedValue = evalResult.value;
     cell.setState(newState);
 
-    // If the value of the cell hasn't changed, there's no need to update cells that reference this cell.
-    if (!valueChanged && cell.state == CellState.OK) return valueChanged;
+    // Consider value changed if the cell's state or resolved value changes.
+    const valueChanged =
+      prevState != newState ||
+      (evalResult != null && prevValue != evalResult.value);
+
+    // If the value of the cell hasn't changed (no change in state or value),
+    // there's no need to update cells that reference this cell.
+    if (
+      prevState == newState &&
+      prevValue == (evalResult ? evalResult.value : "")
+    )
+      return valueChanged;
 
     // Update cells that reference this cell.
     for (const [refKey, refInfo] of cell.referencesIn) {
@@ -649,7 +656,6 @@ export default class Sheet {
         );
       }
     }
-
     return valueChanged;
   }
 
@@ -696,12 +702,13 @@ export default class Sheet {
     cell: Cell,
     columnKey: ColumnKey,
     rowKey: RowKey,
-    evalResult: EvaluationResult,
-  ): CellState {
+    evalResult: EvaluationResult | null,
+  ) {
     // Update referencesOut of this cell and referencesIn of newly referenced cells.
     const oldOut = new Map<CellKey, CellReference>(cell.referencesOut);
     cell.referencesOut.clear();
-    evalResult.references.forEach((ref) => {
+
+    evalResult?.references.forEach((ref) => {
       const refSheet = this.sheetHolder.getSheet(ref.sheetKey)!;
 
       // Initialize the referred cell if it doesn't exist yet.
@@ -747,12 +754,6 @@ export default class Sheet {
       // This may result in the cell being unused - delete if necessary.
       referredSheet.deleteCellIfUnused(refInfo.column, refInfo.row);
     }
-
-    // After references are updated, check for circular references.
-    if (evalResult.references.length && this.hasCircularReference(cell)) {
-      return CellState.CIRCULAR_REFERENCE;
-    }
-    return CellState.OK;
   }
 
   private hasCircularReference(cell: Cell): boolean {

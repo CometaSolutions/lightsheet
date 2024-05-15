@@ -209,9 +209,6 @@ export default class ExpressionHandler {
       for (let i = start.rowIndex; i <= end.rowIndex; i++) {
         for (let j = start.colIndex; j <= end.colIndex; j++) {
           const cellInfo = targetSheet.getCellInfoAt(j, i);
-          if (cellInfo && cellInfo.state != CellState.OK)
-            throw new Error("Invalid cell reference: " + symbol);
-
           this.cellRefHolder.push({
             sheetKey: targetSheet.key,
             position: { column: j, row: i },
@@ -226,8 +223,7 @@ export default class ExpressionHandler {
       ExpressionHandler.parseSymbolToPosition(symbol);
 
     const cellInfo = targetSheet.getCellInfoAt(colIndex, rowIndex);
-    if (cellInfo && cellInfo.state != CellState.OK)
-      throw new Error("Invalid cell reference: " + symbol);
+
 
     this.cellRefHolder.push({
       sheetKey: targetSheet.key,
