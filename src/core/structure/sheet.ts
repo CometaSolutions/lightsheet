@@ -103,7 +103,7 @@ export default class Sheet {
 
     return {
       rawValue: cell ? cell.rawValue : undefined,
-      resolvedValue: cell ? cell.formattedValue : undefined,
+      resolvedValue: cell ? cell.resolvedValue : undefined,
       formattedValue: cell ? cell.formattedValue : undefined,
       state: cell ? cell.state : undefined,
       position: {
