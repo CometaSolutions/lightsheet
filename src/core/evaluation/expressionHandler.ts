@@ -17,7 +17,6 @@ import {
   EvaluationResult,
 } from "./expressionHandler.types.ts";
 
-import { CellState } from "../structure/cell/cellState.ts";
 import LightsheetHelper from "../../utils/helpers.ts";
 import { Coordinate } from "../../utils/common.types.ts";
 import { CellReference } from "../structure/cell/types.cell.ts";
