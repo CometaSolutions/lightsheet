@@ -223,7 +223,6 @@ export default class ExpressionHandler {
 
     const cellInfo = targetSheet.getCellInfoAt(colIndex, rowIndex);
 
-
     this.cellRefHolder.push({
       sheetKey: targetSheet.key,
       position: {
