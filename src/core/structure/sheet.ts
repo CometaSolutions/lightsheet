@@ -603,14 +603,15 @@ export default class Sheet {
     const prevState = cell.state;
     const prevValue = cell.resolvedValue;
 
-    let newState = evalResult ? CellState.OK : CellState.INVALID_EXPRESSION;
-
     this.processEvaluationReferences(cell, colKey, rowKey, evalResult);
     // After references are updated, check for circular references.
     if (evalResult?.references && this.hasCircularReference(cell)) {
-      newState = CellState.CIRCULAR_REFERENCE;
+      // TODO Should the whole reference chain be invalidated?
+      cell.setState(CellState.CIRCULAR_REFERENCE);
+      return prevValue != "";
     }
 
+    let newState = evalResult ? CellState.OK : CellState.INVALID_EXPRESSION;
     if (evalResult) {
       if (evalResult.value == undefined) {
         // Expression was parsed, but value can't be resolved due to invalid operations/symbols.
@@ -622,18 +623,13 @@ export default class Sheet {
 
     cell.setState(newState);
 
-    // Consider value changed if the cell's state or resolved value changes.
-    const valueChanged =
-      prevState != newState ||
-      (evalResult != null && prevValue != evalResult.value);
-
     // If the value of the cell hasn't changed (no change in state or value),
     // there's no need to update cells that reference this cell.
     if (
       prevState == newState &&
       prevValue == (evalResult ? evalResult.value : "")
     )
-      return valueChanged;
+      return false;
 
     // Update cells that reference this cell.
     for (const [refKey, refInfo] of cell.referencesIn) {
@@ -656,7 +652,7 @@ export default class Sheet {
         );
       }
     }
-    return valueChanged;
+    return true;
   }
 
   private applyCellFormatter(
@@ -769,6 +765,8 @@ export default class Sheet {
 
       const currSheet = this.sheetHolder.getSheet(current[1])!;
       const currentCell = currSheet.cellData.get(currCellKey)!;
+      if (currentCell.state == CellState.CIRCULAR_REFERENCE) return true;
+
       currentCell.referencesOut.forEach((cellRef, refCellKey) => {
         refStack.push([refCellKey, cellRef.sheetKey]);
       });
