@@ -43,6 +43,8 @@ export default class UI {
     this.singleSelectedCell = undefined;
     this.events = events ?? new Events();
     this.registerEvents();
+    this.initializeKeyEvents();
+
     this.toolbarOptions = {
       showToolbar: false,
       element: undefined,
@@ -117,6 +119,43 @@ export default class UI {
     }
   }
 
+  private initializeKeyEvents() {
+    // TODO Is it bad to capture using document? Can this be narrowed?
+    document.addEventListener("keydown", (e: KeyboardEvent) => {
+      const selectedCell = this.getSelectedCell();
+      const selectedInput = selectedCell?.firstChild as HTMLInputElement;
+      const targetEl = e.target as HTMLElement;
+      const inputSelected = targetEl.classList.contains(
+        "lightsheet_table_cell_input",
+      );
+
+      if (
+        !selectedCell &&
+        !this.selectedHeaderCell &&
+        !this.selectedRowNumberCell &&
+        !this.selectedCellsContainer.selectionStart == null
+      )
+        return; // Ignore keyboard events if nothing is selected.
+
+      if (e.key === "Escape") {
+        // Clear selection on esc.
+        this.removeGroupSelection();
+        this.removeCellRangeSelection();
+
+        if (!inputSelected) {
+          selectedCell?.classList.remove("lightsheet_table_selected_cell");
+        }
+        selectedInput?.blur();
+      } else if (e.key.startsWith("Arrow") && !inputSelected) {
+        // TODO navigation with arrow keys.
+        e.preventDefault();
+      } else {
+        // Default to appending text to selected cell. Note that in this case Excel also clears the cell.
+        selectedInput?.focus();
+      }
+    });
+  }
+
   removeToolbar() {
     if (this.toolbarDom) this.toolbarDom.remove();
   }
@@ -158,9 +197,7 @@ export default class UI {
   setFormulaBar() {
     this.formulaInput.addEventListener("input", () => {
       const newValue = this.formulaInput.value;
-      const selectedCellInput = document.querySelector(
-        ".lightsheet_table_selected_cell input",
-      ) as HTMLInputElement;
+      const selectedCellInput = this.getSelectedCellInput();
       if (selectedCellInput) {
         selectedCellInput.value = newValue;
       }
@@ -174,9 +211,7 @@ export default class UI {
           this.onUICellValueChange(newValue, colIndex, rowIndex);
         }
         this.formulaInput.blur();
-        const previouslySelectedCell = document.querySelector(
-          ".lightsheet_table_selected_cell",
-        );
+        const previouslySelectedCell = this.getSelectedCell();
         if (previouslySelectedCell) {
           previouslySelectedCell.classList.remove(
             "lightsheet_table_selected_cell",
@@ -329,17 +364,23 @@ export default class UI {
         rowIndex,
       );
 
-    inputDom.onfocus = () => {
+    const onfocus = () => {
       inputDom.value = inputDom.getAttribute("rawValue") ?? "";
       this.removeGroupSelection();
       this.removeCellRangeSelection();
-      const previouslySelectedInput = document.querySelector(
-        ".lightsheet_table_selected_cell",
-      );
-      if (previouslySelectedInput) {
-        previouslySelectedInput.classList.remove(
+      const previouslySelectedCell = this.getSelectedCell();
+
+      if (previouslySelectedCell == cellDom) {
+        return;
+      }
+      if (previouslySelectedCell) {
+        previouslySelectedCell.classList.remove(
           "lightsheet_table_selected_cell",
         );
+        const prevInput =
+          previouslySelectedCell.firstChild! as HTMLInputElement;
+        prevInput.blur();
+        prevInput.value = prevInput.getAttribute("resolvedvalue") ?? "";
       }
 
       cellDom.classList.add("lightsheet_table_selected_cell");
@@ -357,9 +398,14 @@ export default class UI {
       }
     };
 
-    inputDom.onblur = () => {
-      inputDom.value = inputDom.getAttribute("resolvedValue") ?? "";
+    const selectCell = (e: Event) => {
+      const previouslySelectedCell = this.getSelectedCell();
+      if (previouslySelectedCell != cellDom) e.preventDefault();
+      onfocus();
     };
+
+    cellDom.addEventListener("mousedown", selectCell);
+    inputDom.onfocus = selectCell;
 
     inputDom.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
@@ -554,7 +600,26 @@ export default class UI {
         this.selectedCellsContainer.selectionEnd
     ) {
       this.updateSelection();
+      const selectedCell = this.tableContainerDom.querySelector(
+        ".lightsheet_table_selected_cell",
+      );
+
+      // Selected cell will display formula - revert to resolved value when dragging.
+      const selectedInput = selectedCell?.firstChild as HTMLInputElement;
+      selectedInput.value = selectedInput.getAttribute("resolvedValue") ?? "";
     }
+  }
+
+  private getSelectedCell() {
+    return this.tableContainerDom.querySelector(
+      ".lightsheet_table_selected_cell",
+    );
+  }
+
+  private getSelectedCellInput() {
+    return this.tableContainerDom.querySelector(
+      ".lightsheet_table_selected_cell input",
+    ) as HTMLInputElement;
   }
 
   private getIndexedRowId(rowIndex: number) {
