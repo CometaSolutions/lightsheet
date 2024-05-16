@@ -627,7 +627,7 @@ export default class UI {
 
     const oldEnd =
       this.getCellCoordinate(this.rangeSelectionEnd) ??
-      this.getSelectedCellCoordinate();
+      this.getSelectedCellCoordinate()!;
 
     const newEnd = { column: colIndex, row: rowIndex };
     this.updateSelection(oldEnd, newEnd);
