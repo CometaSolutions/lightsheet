@@ -510,12 +510,12 @@ export default class UI {
     // If the selection root is within the rectangle formed by the update points,
     // clear the previous selection first.
     const topLeft = {
-      column: Math.min(previousEnd!.column, newEnd!.column),
-      row: Math.min(previousEnd!.row, newEnd!.row),
+      column: Math.min(previousEnd.column, newEnd!.column),
+      row: Math.min(previousEnd.row, newEnd!.row),
     };
     const botRight = {
-      column: Math.max(previousEnd!.column, newEnd!.column),
-      row: Math.max(previousEnd!.row, newEnd!.row),
+      column: Math.max(previousEnd.column, newEnd!.column),
+      row: Math.max(previousEnd.row, newEnd!.row),
     };
     if (
       (selRoot.column > topLeft.column && selRoot.column < botRight.column) ||
@@ -543,11 +543,10 @@ export default class UI {
   }
 
   private getSelectionDiff(
-    previousEnd: Coordinate | null,
+    previousEnd: Coordinate,
     newEnd: Coordinate,
   ): { added: Array<Coordinate>; removed: Array<Coordinate> } {
     const selRoot = this.getSelectedCellCoordinate()!;
-    previousEnd = previousEnd ?? selRoot;
 
     const added: Array<Coordinate> = [];
     const removed: Array<Coordinate> = [];
