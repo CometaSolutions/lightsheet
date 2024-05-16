@@ -1,4 +1,3 @@
-import { SelectionContainer } from "./render.types.ts";
 import LightsheetEvent from "../core/event/event.ts";
 import {
   CoreSetCellPayload,
@@ -20,9 +19,9 @@ export default class UI {
   tableHeadDom!: Element;
   tableBodyDom!: Element;
   selectedCell: HTMLElement | null = null;
+  rangeSelectionEnd: HTMLElement | null = null;
   selectedRowNumberCell: HTMLElement | null = null;
   selectedHeaderCell: HTMLElement | null = null;
-  selectedCellsContainer: SelectionContainer;
   toolbarOptions: ToolbarOptions;
   isReadOnly: boolean;
   sheetName: string;
@@ -34,10 +33,6 @@ export default class UI {
     lightSheetOptions: LightsheetOptions,
     events: Events | null = null,
   ) {
-    this.selectedCellsContainer = {
-      selectionStart: null,
-      selectionEnd: null,
-    };
     this.events = events ?? new Events();
     this.registerEvents();
     this.initializeKeyEvents();
@@ -119,20 +114,19 @@ export default class UI {
   private initializeKeyEvents() {
     // TODO Is it bad to capture using document? Can this be narrowed?
     document.addEventListener("keydown", (e: KeyboardEvent) => {
-      const selectedCell = this.getSelectedCell();
-      const selectedInput = selectedCell?.firstChild as HTMLInputElement;
       const targetEl = e.target as HTMLElement;
       const inputSelected = targetEl.classList.contains(
         "lightsheet_table_cell_input",
       );
 
       if (
-        !selectedCell &&
+        !this.selectedCell &&
         !this.selectedHeaderCell &&
-        !this.selectedRowNumberCell &&
-        !this.selectedCellsContainer.selectionStart == null
+        !this.selectedRowNumberCell
       )
         return; // Ignore keyboard events if nothing is selected.
+
+      const selectedInput = this.getSelectedCellInput();
 
       if (e.key === "Escape") {
         // Clear selection on esc.
@@ -140,7 +134,7 @@ export default class UI {
         this.removeCellRangeSelection();
 
         if (!inputSelected) {
-          selectedCell?.classList.remove("lightsheet_table_selected_cell");
+          this.selectedCell?.classList.remove("lightsheet_table_selected_cell");
         }
         selectedInput?.blur();
       } else if (e.key.startsWith("Arrow") && !inputSelected) {
@@ -207,12 +201,7 @@ export default class UI {
           this.onUICellValueChange(newValue, selected.column, selected.row);
         }
         this.formulaInput.blur();
-        const previouslySelectedCell = this.getSelectedCell();
-        if (previouslySelectedCell) {
-          previouslySelectedCell.classList.remove(
-            "lightsheet_table_selected_cell",
-          );
-        }
+        this.selectedCell?.classList.remove("lightsheet_table_selected_cell");
       }
     });
     this.formulaInput.onblur = () => {
@@ -363,19 +352,15 @@ export default class UI {
       inputDom.value = inputDom.getAttribute("rawValue") ?? "";
       this.removeGroupSelection();
       this.removeCellRangeSelection();
-      const previouslySelectedCell = this.getSelectedCell();
 
-      if (previouslySelectedCell == cellDom) {
+      if (this.selectedCell == cellDom) {
         return;
       }
-      if (previouslySelectedCell) {
-        previouslySelectedCell.classList.remove(
-          "lightsheet_table_selected_cell",
-        );
-        const prevInput =
-          previouslySelectedCell.firstChild! as HTMLInputElement;
-        prevInput.blur();
-        prevInput.value = prevInput.getAttribute("resolvedvalue") ?? "";
+      if (this.selectedCell) {
+        this.selectedCell.classList.remove("lightsheet_table_selected_cell");
+        const selectedInput = this.getSelectedCellInput()!;
+        selectedInput.blur();
+        selectedInput.value = selectedInput.getAttribute("resolvedvalue") ?? "";
       }
 
       cellDom.classList.add("lightsheet_table_selected_cell");
@@ -387,8 +372,8 @@ export default class UI {
     };
 
     const selectCell = (e: Event) => {
-      const previouslySelectedCell = this.getSelectedCell();
-      if (previouslySelectedCell != cellDom) e.preventDefault();
+      if (this.selectedCell != cellDom || this.rangeSelectionEnd)
+        e.preventDefault();
       onfocus();
     };
 
@@ -401,10 +386,6 @@ export default class UI {
         cellDom.classList.remove("lightsheet_table_selected_cell");
       }
     });
-
-    inputDom.onmousedown = (e: MouseEvent) => {
-      this.handleMouseDown(e, colIndex, rowIndex);
-    };
 
     inputDom.onmouseover = (e: MouseEvent) => {
       if (e.buttons === 1) {
@@ -514,112 +495,173 @@ export default class UI {
   }
 
   removeCellRangeSelection() {
-    const cells = Array.from(this.tableContainerDom.querySelectorAll("td"));
-    cells.forEach((cell) =>
-      cell.classList.remove("lightsheet_table_selected_cell_range"),
+    if (!this.rangeSelectionEnd || !this.selectedCell) return;
+
+    this.updateSelection(
+      this.getCellCoordinate(this.rangeSelectionEnd)!,
+      this.getSelectedCellCoordinate()!,
     );
+    this.rangeSelectionEnd = null;
   }
 
-  cellInRange(cell: HTMLTableCellElement) {
-    const { selectionStart, selectionEnd } = this.selectedCellsContainer;
-    if (!selectionStart || !selectionEnd) {
-      return false;
+  private updateSelection(previousEnd: Coordinate, newEnd: Coordinate) {
+    const selRoot = this.getSelectedCellCoordinate()!;
+
+    // If the selection root is within the rectangle formed by the update points,
+    // clear the previous selection first.
+    const topLeft = {
+      column: Math.min(previousEnd!.column, newEnd!.column),
+      row: Math.min(previousEnd!.row, newEnd!.row),
+    };
+    const botRight = {
+      column: Math.max(previousEnd!.column, newEnd!.column),
+      row: Math.max(previousEnd!.row, newEnd!.row),
+    };
+    if (
+      (selRoot.column > topLeft.column && selRoot.column < botRight.column) ||
+      (selRoot.row > topLeft.row && selRoot.row < botRight.row)
+    ) {
+      this.updateSelection(previousEnd, selRoot);
+      previousEnd = selRoot;
     }
 
-    const cellCoordinate = cell.id.split("_").slice(-2);
-    const columnIndex = Number(cellCoordinate[0]);
-    const rowIndex = Number(cellCoordinate[1]);
-    if (columnIndex === undefined || rowIndex === undefined) return false;
+    const selectionUpdate = this.getSelectionDiff(previousEnd, newEnd);
 
-    const withinX =
-      (columnIndex >= selectionStart.column &&
-        columnIndex <= selectionEnd.column) ||
-      (columnIndex <= selectionStart.column &&
-        columnIndex >= selectionEnd.column);
-    const withinY =
-      (rowIndex >= selectionStart.row && rowIndex <= selectionEnd.row) ||
-      (rowIndex <= selectionStart.row && rowIndex >= selectionEnd.row);
+    for (const added of selectionUpdate.added) {
+      const cell = document.getElementById(
+        this.getIndexedCellId(added.column, added.row),
+      );
+      cell?.classList.add("lightsheet_table_selected_cell_range");
+    }
 
-    return withinX && withinY;
+    for (const removed of selectionUpdate.removed) {
+      const cell = document.getElementById(
+        this.getIndexedCellId(removed.column, removed.row),
+      );
+      cell?.classList.remove("lightsheet_table_selected_cell_range");
+    }
   }
 
-  updateSelection() {
-    this.removeCellRangeSelection();
-    const cells = Array.from(this.tableContainerDom.querySelectorAll("td"));
-    cells.forEach((cell) => {
-      if (
-        cell.classList.contains("lightsheet_table_header") ||
-        cell.classList.contains("lightsheet_table_row_number")
-      )
-        return;
+  private getSelectionDiff(
+    previousEnd: Coordinate | null,
+    newEnd: Coordinate,
+  ): { added: Array<Coordinate>; removed: Array<Coordinate> } {
+    const selRoot = this.getSelectedCellCoordinate()!;
+    previousEnd = previousEnd ?? selRoot;
 
-      if (this.cellInRange(cell)) {
-        cell.classList.add("lightsheet_table_selected_cell_range");
+    const added: Array<Coordinate> = [];
+    const removed: Array<Coordinate> = [];
+
+    // Negative when shrinking, positive when growing.
+    const colDiff =
+      Math.abs(selRoot.column - newEnd.column) -
+      Math.abs(selRoot.column - previousEnd.column);
+
+    const diffMinColumn = Math.min(previousEnd.column, newEnd.column);
+    const newSelectionMinRow = Math.min(selRoot.row, newEnd.row);
+    const newSelectionMaxRow = Math.max(selRoot.row, newEnd.row);
+
+    // Add cells from horizontal expansion.
+    for (let c = diffMinColumn; c < diffMinColumn + colDiff; c++) {
+      for (let r = newSelectionMinRow; r < newSelectionMaxRow + 1; r++) {
+        const colIndex = newEnd.column - previousEnd.column > 0 ? c + 1 : c;
+        added.push({ column: colIndex, row: r });
       }
-    });
-  }
-
-  handleMouseDown(e: MouseEvent, colIndex: number, rowIndex: number) {
-    if (e.button === 0) {
-      this.selectedCellsContainer.selectionStart =
-        (colIndex != null || undefined) && (rowIndex != null || undefined)
-          ? {
-              row: rowIndex,
-              column: colIndex,
-            }
-          : null;
     }
+
+    const rowDiff =
+      Math.abs(selRoot.row - newEnd.row) -
+      Math.abs(selRoot.row - previousEnd.row);
+
+    const diffMinRow = Math.min(previousEnd.row, newEnd.row);
+    const newSelectionMinCol = Math.min(selRoot.column, newEnd.column);
+    const newSelectionMaxCol = Math.max(selRoot.column, newEnd.column);
+
+    // Add cells from vertical expansion.
+    for (let r = diffMinRow; r < diffMinRow + rowDiff; r++) {
+      for (let c = newSelectionMinCol; c < newSelectionMaxCol + 1; c++) {
+        const rowIndex = newEnd.row - previousEnd.row > 0 ? r + 1 : r;
+        added.push({ column: c, row: rowIndex });
+      }
+    }
+
+    const diffMaxCol = Math.max(previousEnd.column, newEnd.column);
+    const minAffectedRow = Math.min(previousEnd.row, newEnd.row, selRoot.row);
+    const maxAffectedRow = Math.max(previousEnd.row, newEnd.row, selRoot.row);
+
+    // Remove cells from horizontal reduction.
+    for (let c = diffMaxCol; c > diffMaxCol + colDiff; c--) {
+      for (let r = minAffectedRow; r < maxAffectedRow + 1; r++) {
+        const colIndex = newEnd.column - previousEnd.column > 0 ? c - 1 : c;
+        removed.push({ column: colIndex, row: r });
+      }
+    }
+
+    const minAffectedCol = Math.min(
+      previousEnd.column,
+      newEnd.column,
+      selRoot.column,
+    );
+    const maxAffectedCol = Math.max(
+      previousEnd.column,
+      newEnd.column,
+      selRoot.column,
+    );
+    const diffMaxRow = Math.max(previousEnd.row, newEnd.row);
+
+    // Remove cells from vertical reduction.
+    for (let r = diffMaxRow; r > diffMaxRow + rowDiff; r--) {
+      for (let c = minAffectedCol; c < maxAffectedCol + 1; c++) {
+        const rowIndex = newEnd.row - previousEnd.row > 0 ? r - 1 : r;
+        removed.push({ column: c, row: rowIndex });
+      }
+    }
+
+    // Results will contain duplicate points where horizontal and vertical movement coincide,
+    // but this does not affect current usage.
+    return { added: added, removed: removed };
   }
 
   handleMouseOver(e: MouseEvent, colIndex: number, rowIndex: number) {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || !this.selectedCell) return;
 
-    this.selectedCellsContainer.selectionEnd =
-      (colIndex != null || undefined) && (rowIndex != null || undefined)
-        ? {
-            row: rowIndex,
-            column: colIndex,
-          }
-        : null;
-    if (
-      this.selectedCellsContainer.selectionStart &&
-      this.selectedCellsContainer.selectionEnd &&
-      this.selectedCellsContainer.selectionStart !==
-        this.selectedCellsContainer.selectionEnd
-    ) {
-      this.updateSelection();
-      const selectedCell = this.tableContainerDom.querySelector(
-        ".lightsheet_table_selected_cell",
-      );
+    const oldEnd =
+      this.getCellCoordinate(this.rangeSelectionEnd) ??
+      this.getSelectedCellCoordinate();
 
-      // Selected cell will display formula - revert to resolved value when dragging.
-      const selectedInput = selectedCell?.firstChild as HTMLInputElement;
-      selectedInput.value = selectedInput.getAttribute("resolvedValue") ?? "";
-    }
-  }
+    const newEnd = { column: colIndex, row: rowIndex };
+    this.updateSelection(oldEnd, newEnd);
 
-  private getSelectedCell() {
-    // TODO Could also use the existing Coordinate fields and query by ID?
-    return this.tableContainerDom.querySelector(
-      ".lightsheet_table_selected_cell",
+    this.rangeSelectionEnd = document.getElementById(
+      this.getIndexedCellId(colIndex, rowIndex),
     );
+
+    // Selected cell will display formula - revert to resolved value when dragging.
+    const selectedInput = this.selectedCell!.firstChild as HTMLInputElement;
+    selectedInput.value = selectedInput.getAttribute("resolvedValue") ?? "";
   }
 
   private getSelectedCellCoordinate(): Coordinate | null {
-    const selection = this.getSelectedCell();
+    const selection = this.selectedCell;
     if (!selection) return null;
 
-    const cellCoordinate = selection.id.split("_").slice(-2);
+    return this.getCellCoordinate(selection);
+  }
+
+  private getCellCoordinate(
+    cellElement: HTMLElement | null,
+  ): Coordinate | null {
+    if (!cellElement) return null;
+
+    const cellCoordinate = cellElement.id.split("_").slice(-2);
     return {
       column: Number(cellCoordinate[0]),
       row: Number(cellCoordinate[1]),
     };
   }
 
-  private getSelectedCellInput() {
-    return this.tableContainerDom.querySelector(
-      ".lightsheet_table_selected_cell input",
-    ) as HTMLInputElement;
+  private getSelectedCellInput(): HTMLInputElement | null {
+    return this.selectedCell?.firstChild as HTMLInputElement;
   }
 
   private getIndexedRowId(rowIndex: number) {
