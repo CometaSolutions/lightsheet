@@ -1,4 +1,5 @@
 import { Coordinate } from "../../utils/common.types.ts";
+import { CellState } from "../structure/cell/cellState.ts";
 
 export type UISetCellPayload = {
   position: Coordinate;
@@ -9,6 +10,7 @@ export type CoreSetCellPayload = {
   position: Coordinate;
   rawValue: string;
   formattedValue: string;
+  state: CellState;
 
   clearCell: boolean;
   clearRow: boolean;

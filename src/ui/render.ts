@@ -9,6 +9,7 @@ import LightsheetHelper from "../utils/helpers.ts";
 import { ToolbarItems } from "../utils/constants.ts";
 import { Coordinate } from "../utils/common.types.ts";
 import Events from "../core/event/events.ts";
+import { CellState } from "../core/structure/cell/cellState.ts";
 
 export default class UI {
   tableEl!: Element;
@@ -132,15 +133,11 @@ export default class UI {
         // Clear selection on esc.
         this.removeGroupSelection();
         this.removeCellRangeSelection();
-
-        if (!inputSelected) {
-          this.selectedCell?.classList.remove("lightsheet_table_selected_cell");
-        }
-        selectedInput?.blur();
+        this.removeCellSelection();
       } else if (e.key.startsWith("Arrow") && !inputSelected) {
         // TODO navigation with arrow keys.
         e.preventDefault();
-      } else {
+      } else if (e.key !== "Enter") {
         // Default to appending text to selected cell. Note that in this case Excel also clears the cell.
         selectedInput?.focus();
       }
@@ -349,18 +346,23 @@ export default class UI {
       );
 
     const onfocus = () => {
-      inputDom.value = inputDom.getAttribute("rawValue") ?? "";
       this.removeGroupSelection();
       this.removeCellRangeSelection();
 
       if (this.selectedCell == cellDom) {
         return;
       }
-      if (this.selectedCell) {
-        this.selectedCell.classList.remove("lightsheet_table_selected_cell");
-        const selectedInput = this.getSelectedCellInput()!;
-        selectedInput.blur();
-        selectedInput.value = selectedInput.getAttribute("resolvedvalue") ?? "";
+
+      const oldSelectedInput = this.getSelectedCellInput();
+      this.selectedCell = cellDom;
+      this.updateCellDisplay(this.getSelectedCellInput()!);
+
+      if (oldSelectedInput) {
+        oldSelectedInput.parentElement!.classList.remove(
+          "lightsheet_table_selected_cell",
+        );
+        oldSelectedInput.blur();
+        this.updateCellDisplay(oldSelectedInput);
       }
 
       cellDom.classList.add("lightsheet_table_selected_cell");
@@ -382,7 +384,7 @@ export default class UI {
 
     inputDom.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
-        inputDom.blur();
+        this.removeCellSelection();
         cellDom.classList.remove("lightsheet_table_selected_cell");
       }
     });
@@ -444,7 +446,14 @@ export default class UI {
     const inputEl = cellDom.firstChild! as HTMLInputElement;
     inputEl.setAttribute("rawValue", payload.rawValue);
     inputEl.setAttribute("resolvedValue", payload.formattedValue);
-    inputEl.value = payload.formattedValue;
+
+    if (payload.state != CellState.OK) {
+      inputEl.setAttribute("state", Number(payload.state).toString());
+      this.updateCellDisplay(inputEl);
+      return;
+    }
+    inputEl.removeAttribute("title");
+    this.updateCellDisplay(inputEl);
   }
 
   getColumnCount() {
@@ -631,13 +640,13 @@ export default class UI {
     const newEnd = { column: colIndex, row: rowIndex };
     this.updateSelection(oldEnd, newEnd);
 
+    if (!this.rangeSelectionEnd) {
+      this.updateCellDisplay(this.getSelectedCellInput()!); // Selected cell will hide formula when range selection is started.
+    }
+
     this.rangeSelectionEnd = document.getElementById(
       this.getIndexedCellId(colIndex, rowIndex),
     );
-
-    // Selected cell will display formula - revert to resolved value when dragging.
-    const selectedInput = this.selectedCell!.firstChild as HTMLInputElement;
-    selectedInput.value = selectedInput.getAttribute("resolvedValue") ?? "";
   }
 
   private getSelectedCellCoordinate(): Coordinate | null {
@@ -659,6 +668,36 @@ export default class UI {
     };
   }
 
+  private updateCellDisplay(cellInput: HTMLInputElement) {
+    if (this.getSelectedCellInput() === cellInput && !this.rangeSelectionEnd) {
+      cellInput.value = cellInput.getAttribute("rawvalue") ?? "";
+      console.log("selected => raw");
+      return;
+    }
+
+    const cellState = Number(cellInput.getAttribute("state")) ?? CellState.OK;
+    if (cellState) {
+      const errorInfo = UI.getErrorForState(cellState);
+      cellInput.value = `#${errorInfo.code}`;
+      cellInput.title = errorInfo.description;
+      console.log("Invalid state => error code");
+      return;
+    }
+    cellInput.removeAttribute("title");
+    cellInput.value = cellInput.getAttribute("resolvedvalue") ?? "";
+    console.log("Unfocused => resolved value");
+  }
+
+  private removeCellSelection() {
+    const selection = this.getSelectedCellInput();
+    selection?.blur();
+    selection?.parentElement!.classList.remove(
+      "lightsheet_table_selected_cell",
+    );
+    this.selectedCell = null;
+    if (selection) this.updateCellDisplay(selection);
+  }
+
   private getSelectedCellInput(): HTMLInputElement | null {
     return this.selectedCell?.firstChild as HTMLInputElement;
   }
@@ -669,5 +708,45 @@ export default class UI {
 
   private getIndexedCellId(colIndex: number, rowIndex: number) {
     return `${this.sheetName}_${colIndex}_${rowIndex}`;
+  }
+
+  // TODO Consider locale?
+  private static getErrorForState(state: CellState): {
+    code: string;
+    description: string;
+  } {
+    switch (state) {
+      case CellState.INVALID_EXPRESSION:
+        return {
+          code: "SYNTAX",
+          description: "The expression is syntactically invalid.",
+        };
+      case CellState.INVALID_SYMBOL:
+        return {
+          code: "SYMBOL",
+          description: "The expression contains an invalid symbol.",
+        };
+      case CellState.INVALID_REFERENCE:
+        return {
+          code: "REFERENCE",
+          description:
+            "The formula contains a reference that couldn't be resolved.",
+        };
+      case CellState.CIRCULAR_REFERENCE:
+        return {
+          code: "CIRC.REF",
+          description: "The formula creates a circular reference.",
+        };
+      case CellState.INVALID_FORMAT:
+        return {
+          code: "FORMAT",
+          description: "The formatter is incompatible with the cell contents.",
+        };
+      default:
+        return {
+          code: "",
+          description: "",
+        };
+    }
   }
 }
