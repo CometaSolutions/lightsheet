@@ -12,22 +12,20 @@ import { Coordinate } from "../utils/common.types.ts";
 import Events from "../core/event/events.ts";
 
 export default class UI {
-  // TODO Revise fields. Some can probably be discarded with IDs always containing position.
   tableEl!: Element;
   toolbarDom: HTMLElement | undefined;
   formulaBarDom!: HTMLElement | null;
   formulaInput!: HTMLInputElement;
-  selectedCellDisplay!: HTMLElement;
+  selectedCellDisplay!: HTMLElement; // TODO Unused
   tableHeadDom!: Element;
   tableBodyDom!: Element;
-  selectedCell: number[];
+  selectedCell: HTMLElement | null = null;
   selectedRowNumberCell: HTMLElement | null = null;
   selectedHeaderCell: HTMLElement | null = null;
   selectedCellsContainer: SelectionContainer;
   toolbarOptions: ToolbarOptions;
   isReadOnly: boolean;
   sheetName: string;
-  singleSelectedCell: Coordinate | undefined;
   tableContainerDom: Element;
   private events: Events;
 
@@ -36,12 +34,10 @@ export default class UI {
     lightSheetOptions: LightsheetOptions,
     events: Events | null = null,
   ) {
-    this.selectedCell = [];
     this.selectedCellsContainer = {
       selectionStart: null,
       selectionEnd: null,
     };
-    this.singleSelectedCell = undefined;
     this.events = events ?? new Events();
     this.registerEvents();
     this.initializeKeyEvents();
@@ -206,10 +202,9 @@ export default class UI {
     this.formulaInput.addEventListener("keyup", (event) => {
       const newValue = this.formulaInput.value;
       if (event.key === "Enter") {
-        if (this.singleSelectedCell) {
-          const colIndex = this.singleSelectedCell.column;
-          const rowIndex = this.singleSelectedCell.row;
-          this.onUICellValueChange(newValue, colIndex, rowIndex);
+        const selected = this.getSelectedCellCoordinate();
+        if (selected) {
+          this.onUICellValueChange(newValue, selected.column, selected.row);
         }
         this.formulaInput.blur();
         const previouslySelectedCell = this.getSelectedCell();
@@ -222,10 +217,9 @@ export default class UI {
     });
     this.formulaInput.onblur = () => {
       const newValue = this.formulaInput.value;
-      if (this.singleSelectedCell) {
-        const colIndex = this.singleSelectedCell.column;
-        const rowIndex = this.singleSelectedCell.row;
-        this.onUICellValueChange(newValue, colIndex, rowIndex);
+      const selected = this.getSelectedCellCoordinate();
+      if (selected) {
+        this.onUICellValueChange(newValue, selected.column, selected.row);
       }
     };
   }
@@ -385,14 +379,7 @@ export default class UI {
       }
 
       cellDom.classList.add("lightsheet_table_selected_cell");
-      if (colIndex !== undefined && rowIndex !== undefined) {
-        this.selectedCell.push(colIndex, rowIndex);
-      }
-
-      this.singleSelectedCell = {
-        column: Number(colIndex),
-        row: Number(rowIndex),
-      };
+      this.selectedCell = cellDom;
 
       if (this.formulaBarDom) {
         this.formulaInput.value = inputDom.getAttribute("rawValue")!;
@@ -612,9 +599,21 @@ export default class UI {
   }
 
   private getSelectedCell() {
+    // TODO Could also use the existing Coordinate fields and query by ID?
     return this.tableContainerDom.querySelector(
       ".lightsheet_table_selected_cell",
     );
+  }
+
+  private getSelectedCellCoordinate(): Coordinate | null {
+    const selection = this.getSelectedCell();
+    if (!selection) return null;
+
+    const cellCoordinate = selection.id.split("_").slice(-2);
+    return {
+      column: Number(cellCoordinate[0]),
+      row: Number(cellCoordinate[1]),
+    };
   }
 
   private getSelectedCellInput() {
