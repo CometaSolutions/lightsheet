@@ -449,8 +449,9 @@ export default class UI {
 
   private onSetColumnLabel(event: LightsheetEvent) {
     const payload = event.payload as SetColumnLabelPayload;
-    for (let i = 0; i < payload.columnIndex - this.getColumnCount() + 1; i++) {
-      this.addColumn(); // Core does not allow creating columns by setting label, but catch this case.
+    const colCount = this.getColumnCount();
+    for (let i = 0; i < payload.columnIndex - colCount + 1; i++) {
+      this.addColumn();
     }
 
     const labelElement =

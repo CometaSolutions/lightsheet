@@ -203,8 +203,11 @@ export default class Sheet {
       );
     }
 
-    const targetKey = this.columnPositions.get(columnIndex);
-    if (!targetKey) return false;
+    let targetKey = this.columnPositions.get(columnIndex);
+    if (!targetKey) {
+      if (!label) return false; // Target column doesn't exist and label is being cleared.
+      targetKey = this.initializeColumn(columnIndex);
+    }
     const column = this.columns.get(targetKey)!;
 
     if (
@@ -849,7 +852,6 @@ export default class Sheet {
 
   private initializePosition(colPos: number, rowPos: number): PositionInfo {
     let rowKey;
-    let colKey;
 
     // Create row and column if they don't exist yet.
     if (!this.rowPositions.has(rowPos)) {
@@ -862,18 +864,21 @@ export default class Sheet {
       rowKey = this.rowPositions.get(rowPos)!;
     }
 
-    if (!this.columnPositions.has(colPos)) {
-      // Create a new column
-      const col = new Column(this.defaultWidth, colPos);
-      this.columns.set(col.key, col);
-      this.columnPositions.set(colPos, col.key);
-
-      colKey = col.key;
-    } else {
-      colKey = this.columnPositions.get(colPos)!;
-    }
+    const colKey = this.initializeColumn(colPos);
 
     return { rowKey: rowKey, columnKey: colKey };
+  }
+
+  private initializeColumn(position: number): ColumnKey {
+    if (!this.columnPositions.has(position)) {
+      const col = new Column(this.defaultWidth, position);
+      this.columns.set(col.key, col);
+      this.columnPositions.set(position, col.key);
+
+      return col.key;
+    } else {
+      return this.columnPositions.get(position)!;
+    }
   }
 
   private emitSetCellEvent(colPos: number, rowPos: number, cell: Cell | null) {
