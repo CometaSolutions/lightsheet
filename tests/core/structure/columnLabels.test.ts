@@ -34,11 +34,8 @@ describe("Column label tests", () => {
     const secSheet = new Sheet("Sheet2");
     secSheet.setCellAt(0, 0, "test");
     secSheet.setColumnLabel(0, "First");
-    sheet.setCellAt(0, 0, "=Sheet2!First1");
-    sheet.setCellAt(0, 1, "=Sheet2!A1");
-
-    const nameRef = sheet.getCellInfoAt(0, 0);
-    const posRef = sheet.getCellInfoAt(0, 1);
+    const nameRef = sheet.setCellAt(0, 0, "=Sheet2!First1");
+    const posRef = sheet.setCellAt(0, 1, "=Sheet2!A1");
 
     expect(nameRef!.resolvedValue).toBe("test");
     expect(posRef!.resolvedValue).toBe("test");
