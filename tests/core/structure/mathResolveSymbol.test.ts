@@ -12,7 +12,7 @@ describe("Math resolve test", () => {
     sheet.setCellAt(0, 1, "3"); // A2
     sheet.setCellAt(1, 1, "4"); // B2
     sheet.setCellAt(0, 2, "5"); // A3
-    sheet.setCellAt(1, 2, "6"); // B3
+    sheet.setCellAt(1, 2, "asd"); // B3
   });
 
   it("should return A1 value when =A1", () => {
@@ -76,5 +76,11 @@ describe("Math resolve test", () => {
     const cellInfo = sheet.getCellInfoAt(2, 0);
     expect(cellInfo?.state).toBe(CellState.INVALID_EXPRESSION);
     expect(cellInfo?.resolvedValue).toBe("");
+  });
+
+  it("should return invalid operands when adding a number and text", () => {
+    sheet.setCellAt(2, 0, "=A1+B3"); // 1+asd
+    const cellInfo = sheet.getCellInfoAt(2, 0);
+    expect(cellInfo!.state).toBe(CellState.INVALID_OPERANDS);
   });
 });
