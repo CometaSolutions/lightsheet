@@ -45,10 +45,12 @@ export default class ExpressionHandler {
   private cellRefHolder: Array<CellSheetPosition>;
   private rawValue: string;
   private targetCellRef: CellReference;
+  private evaluationResult: CellState;
 
   constructor(targetSheet: Sheet, targetCell: CellReference, rawValue: string) {
     this.sheet = targetSheet;
     this.targetCellRef = targetCell;
+    this.evaluationResult = CellState.OK;
 
     this.rawValue = rawValue;
     this.cellRefHolder = [];
@@ -89,10 +91,13 @@ export default class ExpressionHandler {
         result: CellState.OK,
       };
     } catch (e) {
-      const result = String(e).includes("Invalid symbol")
-        ? CellState.INVALID_SYMBOL
-        : CellState.INVALID_OPERANDS;
-      return { references: this.cellRefHolder, result: result };
+      if (this.evaluationResult == CellState.OK) {
+        // Assign a default result (and print exception) if the exception was thrown by an unknown reason.
+        // This can for example be caused by a function crash.
+        console.log(e);
+        this.evaluationResult = CellState.UNKNOWN_ERROR;
+      }
+      return { references: this.cellRefHolder, result: this.evaluationResult };
     }
   }
 
@@ -195,22 +200,30 @@ export default class ExpressionHandler {
     let targetSheet = this.sheet;
     if (symbol.includes("!")) {
       const parts = symbol.split("!").filter((s) => s !== "");
-      if (parts.length != 2)
+      if (parts.length != 2) {
+        this.evaluationResult = CellState.INVALID_REFERENCE;
         throw new Error("Invalid sheet reference: " + symbol);
+      }
 
       const sheetName = parts[0];
       const refSheet = SheetHolder.getInstance().getSheetByName(sheetName);
-      if (!refSheet) throw new Error("Invalid sheet reference: " + symbol);
+      if (!refSheet) {
+        this.evaluationResult = CellState.INVALID_REFERENCE;
+        throw new Error("Invalid sheet reference: " + symbol);
+      }
       targetSheet = refSheet;
       symbol = parts[1];
     }
 
     if (symbol.includes(":")) {
       const rangeParts = symbol.split(":").filter((s) => s !== "");
-      if (rangeParts.length != 2) throw new Error("Invalid range: " + symbol);
+      if (rangeParts.length != 2) {
+        this.evaluationResult = CellState.INVALID_EXPRESSION;
+        throw new Error("Invalid range: " + symbol);
+      }
 
-      const start = ExpressionHandler.parseSymbolToPosition(rangeParts[0]);
-      const end = ExpressionHandler.parseSymbolToPosition(rangeParts[1]);
+      const start = this.parseSymbolToPosition(rangeParts[0]);
+      const end = this.parseSymbolToPosition(rangeParts[1]);
 
       const values: string[] = [];
       for (let i = start.rowIndex; i <= end.rowIndex; i++) {
@@ -226,8 +239,7 @@ export default class ExpressionHandler {
       return values;
     }
 
-    const { colIndex, rowIndex } =
-      ExpressionHandler.parseSymbolToPosition(symbol);
+    const { colIndex, rowIndex } = this.parseSymbolToPosition(symbol);
 
     const cellInfo = targetSheet.getCellInfoAt(colIndex, rowIndex);
 
@@ -241,21 +253,30 @@ export default class ExpressionHandler {
     return cellInfo?.resolvedValue ?? "";
   }
 
-  private static parseSymbolToPosition(symbol: string): {
+  private parseSymbolToPosition(symbol: string): {
     colIndex: number;
     rowIndex: number;
   } {
     const letterGroups = symbol.split(/[0-9]+/).filter((s) => s !== "");
-    if (letterGroups.length != 1) throw new Error("Invalid symbol: " + symbol);
+    if (letterGroups.length != 1) {
+      this.evaluationResult = CellState.INVALID_SYMBOL;
+      throw new Error("Invalid symbol: " + symbol);
+    }
 
     const columnStr = letterGroups[0];
     const colIndex = LightsheetHelper.resolveColumnIndex(columnStr);
-    if (colIndex == -1) throw new Error("Invalid symbol: " + symbol);
+    if (colIndex == -1) {
+      this.evaluationResult = CellState.INVALID_SYMBOL;
+      throw new Error("Invalid symbol: " + symbol);
+    }
 
     const rowStr = symbol.substring(columnStr.length);
     const rowIndex = parseInt(rowStr) - 1;
 
-    if (isNaN(rowIndex)) throw new Error("Invalid symbol: " + symbol);
+    if (isNaN(rowIndex)) {
+      this.evaluationResult = CellState.INVALID_SYMBOL;
+      throw new Error("Invalid symbol: " + symbol);
+    }
 
     return { colIndex, rowIndex };
   }
