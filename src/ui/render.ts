@@ -660,7 +660,6 @@ export default class UI {
   private updateCellDisplay(cellInput: HTMLInputElement) {
     if (this.getSelectedCellInput() === cellInput && !this.rangeSelectionEnd) {
       cellInput.value = cellInput.getAttribute("rawvalue") ?? "";
-      console.log("selected => raw");
       return;
     }
 
@@ -669,12 +668,10 @@ export default class UI {
       const errorInfo = UI.getErrorForState(Number(cellState));
       cellInput.value = `#${errorInfo.code}`;
       cellInput.title = errorInfo.description;
-      console.log("Invalid state => error code");
       return;
     }
     cellInput.removeAttribute("title");
     cellInput.value = cellInput.getAttribute("resolvedvalue") ?? "";
-    console.log("Unfocused => resolved value");
   }
 
   private setSelectedCell(cell: HTMLElement) {
