@@ -434,14 +434,12 @@ export default class UI {
     inputEl.setAttribute("rawValue", payload.rawValue);
     inputEl.setAttribute("resolvedValue", payload.formattedValue);
 
-    if (payload.state != CellState.OK) {
-      inputEl.setAttribute("state", Number(payload.state).toString());
-      this.updateCellDisplay(inputEl);
-      return;
-    } else {
+    if (payload.state == CellState.OK) {
       inputEl.removeAttribute("state");
+    } else {
+      inputEl.setAttribute("state", Number(payload.state).toString());
     }
-    inputEl.removeAttribute("title");
+
     this.updateCellDisplay(inputEl);
   }
 
@@ -658,11 +656,13 @@ export default class UI {
   }
 
   private updateCellDisplay(cellInput: HTMLInputElement) {
+    // Display formula for selected cell.
     if (this.getSelectedCellInput() === cellInput && !this.rangeSelectionEnd) {
       cellInput.value = cellInput.getAttribute("rawvalue") ?? "";
       return;
     }
 
+    // Display error state for unselected cell.
     const cellState = cellInput.getAttribute("state");
     if (cellState) {
       const errorInfo = UI.getErrorForState(Number(cellState));
@@ -670,6 +670,8 @@ export default class UI {
       cellInput.title = errorInfo.description;
       return;
     }
+
+    // Display resolved value for unselected cell without error state.
     cellInput.removeAttribute("title");
     cellInput.value = cellInput.getAttribute("resolvedvalue") ?? "";
   }

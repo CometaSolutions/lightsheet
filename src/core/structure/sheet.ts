@@ -748,9 +748,7 @@ export default class Sheet {
     while (refStack.length > 0) {
       const current = refStack.pop()!;
       const currCellKey = current[0];
-      if (currCellKey === cell.key && !initial) {
-        return true;
-      }
+      if (currCellKey === cell.key && !initial) return true;
 
       const currSheet = this.sheetHolder.getSheet(current[1])!;
       const currentCell = currSheet.cellData.get(currCellKey)!;
