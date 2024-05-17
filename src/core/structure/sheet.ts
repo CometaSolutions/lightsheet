@@ -225,6 +225,8 @@ export default class Sheet {
 
     const defaultLabel = LightsheetHelper.generateColumnLabel(columnIndex);
     if (label == "" || label == null) {
+      // TODO: Incoming references are ignored here.
+      //  If a cell is referring to this column by label, it will preserve its value until re-evaluated.
       label = defaultLabel;
       column.label = undefined;
       this.deleteColumnIfUnused(column); // Clearing label may lead to the column being unused.
