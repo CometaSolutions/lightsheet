@@ -15,3 +15,8 @@ export type CoreSetCellPayload = {
   clearCell: boolean;
   clearRow: boolean;
 };
+
+export type SetColumnLabelPayload = {
+  columnIndex: number;
+  label: string;
+};
