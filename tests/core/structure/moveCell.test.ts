@@ -24,8 +24,24 @@ describe("Cell moving tests", () => {
     sheet.moveCell({ column: 0, row: 0 }, { column: 3, row: 3 });
     const referringCell = sheet.getCellInfoAt(1, 0);
     expect(sheet.getCellInfoAt(0, 0)).toBe(null);
-    expect(referringCell!.resolvedValue).toBe("1");
     expect(referringCell!.rawValue).toBe("=D4");
+    expect(referringCell!.resolvedValue).toBe("1");
+  });
+
+  it("should move a single cell between named columns and not invalidate incoming references", () => {
+    sheet.setColumnLabel(0, "First");
+    sheet.setColumnLabel(4, "Fifth");
+    sheet.setCellAt(1, 0, "=First1");
+
+    sheet.moveCell({ column: 0, row: 0 }, { column: 3, row: 3 });
+    let referringCell = sheet.getCellInfoAt(1, 0);
+    expect(referringCell!.rawValue).toBe("=D4");
+    expect(referringCell!.resolvedValue).toBe("1");
+
+    sheet.moveCell({ column: 3, row: 3 }, { column: 4, row: 0 });
+    referringCell = sheet.getCellInfoAt(1, 0);
+    expect(referringCell!.rawValue).toBe("=Fifth1");
+    expect(referringCell!.resolvedValue).toBe("1");
   });
 
   it("should move multiple cells and not invalidate references", () => {
