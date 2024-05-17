@@ -756,18 +756,21 @@ export default class Sheet {
     while (refStack.length > 0) {
       const current = refStack.pop()!;
       const currCellKey = current[0];
-      if (currCellKey === cell.key && !initial) return true;
-      initial = false;
+      if (currCellKey === cell.key && !initial) {
+        return true;
+      }
 
       const currSheet = this.sheetHolder.getSheet(current[1])!;
       const currentCell = currSheet.cellData.get(currCellKey)!;
-      if (currentCell.state == CellState.CIRCULAR_REFERENCE) return true;
+      if (currentCell.state == CellState.CIRCULAR_REFERENCE && !initial)
+        return true;
 
       currentCell.referencesOut.forEach((cellRef, refCellKey) => {
         refStack.push([refCellKey, cellRef.sheetKey]);
       });
-    }
 
+      initial = false;
+    }
     return false;
   }
 
