@@ -200,7 +200,7 @@ export default class ExpressionHandler {
     if (symbol.includes("!")) {
       const parts = symbol.split("!").filter((s) => s !== "");
       if (parts.length != 2)
-        throw new Error("Invalid sheet reference: " + symbol); // TODO Error code.
+        throw new Error("Invalid sheet reference: " + symbol);
 
       const sheetName = parts[0];
       const refSheet = SheetHolder.getInstance().getSheetByName(sheetName);
