@@ -46,14 +46,14 @@ describe("Math resolve test", () => {
   it("should return invalid value when =A", () => {
     sheet.setCellAt(2, 0, "=A");
     const cellInfo = sheet.getCellInfoAt(2, 0);
-    expect(cellInfo?.state).toBe(CellState.INVALID_EXPRESSION);
+    expect(cellInfo?.state).toBe(CellState.INVALID_SYMBOL);
     expect(cellInfo?.resolvedValue).toBe("");
   });
 
   it("should return invalid value when =A1A2", () => {
     sheet.setCellAt(2, 0, "=A1A2");
     const cellInfo = sheet.getCellInfoAt(2, 0);
-    expect(cellInfo?.state).toBe(CellState.INVALID_EXPRESSION);
+    expect(cellInfo?.state).toBe(CellState.INVALID_SYMBOL);
     expect(cellInfo?.resolvedValue).toBe("");
   });
 
@@ -67,7 +67,7 @@ describe("Math resolve test", () => {
   it("should return invalid value when =A/2", () => {
     sheet.setCellAt(2, 0, "=A/2");
     const cellInfo = sheet.getCellInfoAt(2, 0);
-    expect(cellInfo?.state).toBe(CellState.INVALID_EXPRESSION);
+    expect(cellInfo?.state).toBe(CellState.INVALID_SYMBOL);
     expect(cellInfo?.resolvedValue).toBe("");
   });
 
