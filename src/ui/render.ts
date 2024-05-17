@@ -451,6 +451,8 @@ export default class UI {
       inputEl.setAttribute("state", Number(payload.state).toString());
       this.updateCellDisplay(inputEl);
       return;
+    } else {
+      inputEl.removeAttribute("state");
     }
     inputEl.removeAttribute("title");
     this.updateCellDisplay(inputEl);
@@ -675,9 +677,9 @@ export default class UI {
       return;
     }
 
-    const cellState = Number(cellInput.getAttribute("state")) ?? CellState.OK;
+    const cellState = cellInput.getAttribute("state");
     if (cellState) {
-      const errorInfo = UI.getErrorForState(cellState);
+      const errorInfo = UI.getErrorForState(Number(cellState));
       cellInput.value = `#${errorInfo.code}`;
       cellInput.title = errorInfo.description;
       console.log("Invalid state => error code");
@@ -725,6 +727,11 @@ export default class UI {
         return {
           code: "SYMBOL",
           description: "The expression contains an invalid symbol.",
+        };
+      case CellState.INVALID_OPERANDS:
+        return {
+          code: "OPERANDS",
+          description: "The expression contains invalid operands.",
         };
       case CellState.INVALID_REFERENCE:
         return {

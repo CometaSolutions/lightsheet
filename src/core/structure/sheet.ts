@@ -609,16 +609,8 @@ export default class Sheet {
       return prevValue != "";
     }
 
-    let newState = evalResult ? CellState.OK : CellState.INVALID_EXPRESSION;
-    if (evalResult) {
-      if (evalResult.value == undefined) {
-        // Expression was parsed, but value can't be resolved due to invalid operations/symbols.
-        newState = CellState.INVALID_SYMBOL;
-      } else {
-        cell.resolvedValue = evalResult.value;
-      }
-    }
-
+    const newState = evalResult?.result ?? CellState.INVALID_EXPRESSION;
+    cell.resolvedValue = evalResult?.value ?? "";
     cell.setState(newState);
 
     // If the value of the cell hasn't changed (no change in state or value),
