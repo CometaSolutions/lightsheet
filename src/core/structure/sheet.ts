@@ -613,7 +613,7 @@ export default class Sheet {
     if (evalResult) {
       if (evalResult.value == undefined) {
         // Expression was parsed, but value can't be resolved due to invalid operations/symbols.
-        newState = CellState.INVALID_SYMBOL; // TODO This error could be distinct.
+        newState = CellState.INVALID_SYMBOL;
       } else {
         cell.resolvedValue = evalResult.value;
       }
