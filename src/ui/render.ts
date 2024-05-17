@@ -353,20 +353,7 @@ export default class UI {
         return;
       }
 
-      const oldSelectedInput = this.getSelectedCellInput();
-      this.selectedCell = cellDom;
-      this.updateCellDisplay(this.getSelectedCellInput()!);
-
-      if (oldSelectedInput) {
-        oldSelectedInput.parentElement!.classList.remove(
-          "lightsheet_table_selected_cell",
-        );
-        oldSelectedInput.blur();
-        this.updateCellDisplay(oldSelectedInput);
-      }
-
-      cellDom.classList.add("lightsheet_table_selected_cell");
-      this.selectedCell = cellDom;
+      this.setSelectedCell(cellDom);
 
       if (this.formulaBarDom) {
         this.formulaInput.value = inputDom.getAttribute("rawValue")!;
@@ -688,6 +675,13 @@ export default class UI {
     cellInput.removeAttribute("title");
     cellInput.value = cellInput.getAttribute("resolvedvalue") ?? "";
     console.log("Unfocused => resolved value");
+  }
+
+  private setSelectedCell(cell: HTMLElement) {
+    this.removeCellSelection();
+    this.selectedCell = cell;
+    cell.classList.add("lightsheet_table_selected_cell");
+    this.updateCellDisplay(this.getSelectedCellInput()!);
   }
 
   private removeCellSelection() {
