@@ -609,16 +609,8 @@ export default class Sheet {
       return prevValue != "";
     }
 
-    let newState = evalResult ? CellState.OK : CellState.INVALID_EXPRESSION;
-    if (evalResult) {
-      if (evalResult.value == undefined) {
-        // Expression was parsed, but value can't be resolved due to invalid operations/symbols.
-        newState = CellState.INVALID_EXPRESSION; // TODO This error could be distinct.
-      } else {
-        cell.resolvedValue = evalResult.value;
-      }
-    }
-
+    const newState = evalResult?.result ?? CellState.INVALID_EXPRESSION;
+    cell.resolvedValue = evalResult?.value ?? "";
     cell.setState(newState);
 
     // If the value of the cell hasn't changed (no change in state or value),
@@ -757,17 +749,18 @@ export default class Sheet {
       const current = refStack.pop()!;
       const currCellKey = current[0];
       if (currCellKey === cell.key && !initial) return true;
-      initial = false;
 
       const currSheet = this.sheetHolder.getSheet(current[1])!;
       const currentCell = currSheet.cellData.get(currCellKey)!;
-      if (currentCell.state == CellState.CIRCULAR_REFERENCE) return true;
+      if (currentCell.state == CellState.CIRCULAR_REFERENCE && !initial)
+        return true;
 
       currentCell.referencesOut.forEach((cellRef, refCellKey) => {
         refStack.push([refCellKey, cellRef.sheetKey]);
       });
-    }
 
+      initial = false;
+    }
     return false;
   }
 
@@ -808,6 +801,7 @@ export default class Sheet {
       },
       rawValue: cell ? cell.rawValue : "",
       formattedValue: cell ? cell.formattedValue : "",
+      state: cell ? cell.state : CellState.OK,
       clearCell: cell == null,
       clearRow: this.rowPositions.get(rowPos) == null,
     };

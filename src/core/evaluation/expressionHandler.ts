@@ -21,6 +21,7 @@ import LightsheetHelper from "../../utils/helpers.ts";
 import { Coordinate } from "../../utils/common.types.ts";
 import { CellReference } from "../structure/cell/types.cell.ts";
 import SheetHolder from "../structure/sheetHolder.ts";
+import { CellState } from "../structure/cell/cellState.ts";
 
 const math = create({
   parseDependencies,
@@ -67,7 +68,7 @@ export default class ExpressionHandler {
 
   evaluate(): EvaluationResult | null {
     if (!this.rawValue.startsWith("="))
-      return { value: this.rawValue, references: [] };
+      return { value: this.rawValue, references: [], result: CellState.OK };
 
     const expression = this.rawValue.substring(1);
     let parsed;
@@ -82,9 +83,16 @@ export default class ExpressionHandler {
 
     try {
       const value = parsed!.evaluate().toString();
-      return { value: value, references: this.cellRefHolder };
+      return {
+        value: value,
+        references: this.cellRefHolder,
+        result: CellState.OK,
+      };
     } catch (e) {
-      return { references: this.cellRefHolder }; // Expression syntax is valid - return resolved references.
+      const result = String(e).includes("Invalid symbol")
+        ? CellState.INVALID_SYMBOL
+        : CellState.INVALID_OPERANDS;
+      return { references: this.cellRefHolder, result: result };
     }
   }
 
