@@ -10,7 +10,7 @@ import SheetHolder from "./core/structure/sheetHolder.ts";
 import { DefaultColCount, DefaultRowCount } from "./utils/constants.ts";
 import ExpressionHandler from "./core/evaluation/expressionHandler.ts";
 import { CellReference } from "./core/structure/cell/types.cell.ts";
-import { RowKey, ColumnKey } from "./core/structure/key/keyTypes.ts";
+import { RowKey, ColumnKey, SheetKey } from "./core/structure/key/keyTypes.ts";
 import CellStyle from "./core/structure/cellStyle.ts";
 import { Coordinate } from "./utils/common.types.ts";
 
@@ -90,7 +90,7 @@ export default class Lightsheet {
     this.events.removeEventListener(eventType, callback, eventState);
   }
 
-  onTableReady() {
+  private onTableReady() {
     this.isReady = true;
     if (this.options.onReady) this.options.onReady();
   }
@@ -104,11 +104,11 @@ export default class Lightsheet {
     this.ui?.showToolbar(isShown);
   }
 
-  getKey() {
+  getKey(): SheetKey {
     return this.sheet.key;
   }
 
-  getName() {
+  getName(): string {
     return this.options.sheetName;
   }
 
@@ -124,14 +124,6 @@ export default class Lightsheet {
     return this.sheet.getCellInfoAt(colPos, rowPos);
   }
 
-  getRowIndex(rowKey: RowKey): number | undefined {
-    return this.sheet.getRowIndex(rowKey);
-  }
-
-  getColumnIndex(colKey: ColumnKey): number | undefined {
-    return this.sheet.getColumnIndex(colKey);
-  }
-
   getCellStyle(colKey?: ColumnKey, rowKey?: RowKey): CellStyle {
     return this.sheet.getCellStyle(colKey, rowKey);
   }
@@ -144,11 +136,11 @@ export default class Lightsheet {
     return this.sheet.setCellStyle(colKey, rowKey, style);
   }
 
-  setRowStyle(rowkey: RowKey, cellStyle: CellStyle): boolean {
+  setRowStyle(rowkey: RowKey, cellStyle: CellStyle | null): boolean {
     return this.sheet.setRowStyle(rowkey, cellStyle);
   }
 
-  setColumnStyle(columnKey: ColumnKey, cellStyle: CellStyle): boolean {
+  setColumnStyle(columnKey: ColumnKey, cellStyle: CellStyle | null): boolean {
     return this.sheet.setColumnStyle(columnKey, cellStyle);
   }
 
