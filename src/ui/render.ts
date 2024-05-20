@@ -758,6 +758,12 @@ export default class UI {
           code: "FORMAT",
           description: "The formatter is incompatible with the cell contents.",
         };
+      case CellState.UNKNOWN_ERROR:
+        return {
+          code: "ERROR",
+          description:
+            "Evaluating the formula failed. See the console for details.",
+        };
       default:
         return {
           code: "",
