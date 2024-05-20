@@ -523,6 +523,7 @@ export default class UI {
 
     const selectionUpdate = this.getSelectionDiff(previousEnd, newEnd);
 
+    // TODO updating each cell class can cause performance issues in larger sheets.
     for (const added of selectionUpdate.added) {
       const cell = document.getElementById(
         this.getIndexedCellId(added.column, added.row),
