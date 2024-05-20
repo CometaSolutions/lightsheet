@@ -94,8 +94,11 @@ export default class ExpressionHandler {
       if (this.evaluationResult == CellState.OK) {
         // Assign a default result (and print exception) if the exception was thrown by an unknown reason.
         // This can for example be caused by a function crash.
-        console.log(e);
-        this.evaluationResult = CellState.UNKNOWN_ERROR;
+        this.evaluationResult = (e as Error)
+          .toString()
+          .includes("Cannot convert")
+          ? CellState.INVALID_OPERANDS
+          : CellState.UNKNOWN_ERROR;
       }
       return { references: this.cellRefHolder, result: this.evaluationResult };
     }
