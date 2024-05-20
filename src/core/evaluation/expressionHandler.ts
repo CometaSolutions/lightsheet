@@ -105,16 +105,26 @@ export default class ExpressionHandler {
     from: Coordinate,
     to: Coordinate,
     targetSheet: Sheet,
-  ) {
+  ): string {
+    if (!this.rawValue.startsWith("=")) return this.rawValue;
+
+    const fromLabel = targetSheet.getColumnLabel(from.column)!;
+    const toLabel = targetSheet.getColumnLabel(to.column)!;
+    return this.updateReferenceSymbols(fromLabel, toLabel, from.row, to.row);
+  }
+
+  updateReferenceSymbols(
+    fromLabel: string,
+    toLabel: string,
+    fromRow: number,
+    toRow: number,
+  ): string {
     if (!this.rawValue.startsWith("=")) return this.rawValue;
 
     const expression = this.rawValue.substring(1);
     const parseResult = math.parse(expression);
-    const fromLabel = targetSheet.getColumnLabel(from.column)!;
-    const toLabel = targetSheet.getColumnLabel(to.column)!;
-
-    const fromSymbol = fromLabel + (from.row + 1);
-    const toSymbol = toLabel + (to.row + 1);
+    const fromSymbol = fromLabel + (fromRow + 1);
+    const toSymbol = toLabel + (toRow + 1);
 
     // Update each symbol in the expression.
     const transform = parseResult.transform((node) =>

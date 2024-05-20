@@ -158,7 +158,10 @@ export default class Sheet {
       fromRow.cellFormatting.delete(fromCol.key);
     }
 
-    this.updateCellReferenceSymbols(this.cellData.get(cellKey)!, from, to);
+    this.updateReferenceSymbols(this.cellData.get(cellKey)!, {
+      from: from,
+      to: to,
+    });
     return true;
   }
 
@@ -192,6 +195,7 @@ export default class Sheet {
 
   public setColumnLabel(columnIndex: number, label: string | null): boolean {
     const mathPattern = /[\d+-/*^.,<>!]/; // Try to catch symbols that would make expression parsing fail.
+    if (label == "") label = null;
 
     if (label && mathPattern.test(label)) {
       throw new Error(`Column label "${label}" contains invalid symbols!`);
@@ -224,9 +228,13 @@ export default class Sheet {
     if (column.label) this.columnLabels.delete(column.label);
 
     const defaultLabel = LightsheetHelper.generateColumnLabel(columnIndex);
+    this.updateColumnLabelReferences(
+      column,
+      column.label ?? defaultLabel,
+      label ?? defaultLabel,
+    );
+
     if (label == "" || label == null) {
-      // TODO: Incoming references are ignored here.
-      //  If a cell is referring to this column by label, it will preserve its value until re-evaluated.
       label = defaultLabel;
       column.label = undefined;
       this.deleteColumnIfUnused(column); // Clearing label may lead to the column being unused.
@@ -332,7 +340,7 @@ export default class Sheet {
         );
       }
       group.position = to;
-      this.updateReferenceSymbolsForGroup(group, from, to);
+      this.updateGroupPositionalRefs(group, from, to);
     }
 
     // We have to update all the positions to keep it consistent.
@@ -371,7 +379,7 @@ export default class Sheet {
       } else {
         targetPositions.set(currentPos, previousValue);
         const group = target.get(previousValue)!;
-        this.updateReferenceSymbolsForGroup(group, group.position, currentPos);
+        this.updateGroupPositionalRefs(group, group.position, currentPos);
         group.position = currentPos;
       }
 
@@ -390,7 +398,7 @@ export default class Sheet {
     return true;
   }
 
-  private updateReferenceSymbolsForGroup(
+  private updateGroupPositionalRefs(
     group: CellGroup<ColumnKey | RowKey>,
     from: number,
     to: number,
@@ -420,14 +428,33 @@ export default class Sheet {
         row: group instanceof Row ? to : oppositeGroupPos!,
       };
 
-      this.updateCellReferenceSymbols(cell, fromCoord, toCoord);
+      this.updateReferenceSymbols(cell, { from: fromCoord, to: toCoord });
     }
   }
 
-  private updateCellReferenceSymbols(
+  private updateColumnLabelReferences(
+    column: Column,
+    fromLabel: string,
+    toLabel: string,
+  ) {
+    for (const [rowKey, cellKey] of column!.cellIndex) {
+      const cell = this.cellData.get(cellKey)!;
+      if (!cell.referencesIn) continue; // Only cells with incoming references are affected.
+
+      const fromRow = this.getRowIndex(rowKey)!;
+      const coordinate: Coordinate = { column: column.position, row: fromRow };
+      this.updateReferenceSymbols(
+        cell,
+        { from: coordinate, to: coordinate }, // Position does not change.
+        { from: fromLabel, to: toLabel },
+      );
+    }
+  }
+
+  private updateReferenceSymbols(
     cell: Cell,
-    from: Coordinate,
-    to: Coordinate,
+    position: { from: Coordinate; to: Coordinate },
+    label?: { from: string; to: string },
   ) {
     // Update reference symbols for all cell formulas that refer to the cell being moved.
     for (const [refCellKey, refInfo] of cell.referencesIn) {
@@ -435,7 +462,16 @@ export default class Sheet {
       const refCell = refSheet.cellData.get(refCellKey)!;
 
       const expr = new ExpressionHandler(refSheet, refInfo, refCell.rawValue);
-      const newValue = expr.updatePositionalReferences(from, to, this);
+
+      // Update either column label reference or positional reference depending on parameters.
+      const newValue = label
+        ? expr.updateReferenceSymbols(
+            label.from,
+            label.to,
+            position.from.row,
+            position.to.row,
+          )
+        : expr.updatePositionalReferences(position.from, position.to, this);
 
       // The formula may not change if the cell is being referenced indirectly through a range.
       if (refCell.rawValue === newValue) continue;
