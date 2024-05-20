@@ -40,4 +40,13 @@ describe("Column label tests", () => {
     expect(nameRef!.resolvedValue).toBe("test");
     expect(posRef!.resolvedValue).toBe("test");
   });
+
+  it("should set and clear column label and preserve references", () => {
+    sheet.setCellAt(1, 0, "=A1");
+    sheet.setColumnLabel(0, "First");
+    expect(sheet.getCellInfoAt(1, 0)?.rawValue).toBe("=First1");
+
+    sheet.setColumnLabel(0, null);
+    expect(sheet.getCellInfoAt(1, 0)?.rawValue).toBe("=A1");
+  });
 });
