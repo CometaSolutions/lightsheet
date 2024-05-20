@@ -6,19 +6,16 @@ import {
   RowKey,
 } from "../key/keyTypes.ts";
 import CellStyle from "../cellStyle.ts";
-import LightsheetHelper from "../../../utils/helpers.ts";
 
 export default class Column extends CellGroup<ColumnKey> {
   cellIndex: Map<RowKey, CellKey>;
   cellFormatting: Map<RowKey, CellStyle>;
+  label: string | undefined;
 
-  constructor(
-    width: number,
-    position: number,
-    name: string | undefined = undefined,
-  ) {
-    super(width, position, name);
+  constructor(width: number, position: number) {
+    super(width, position);
     this.key = generateColumnKey();
+
     this.cellIndex = new Map<RowKey, CellKey>();
     this.cellFormatting = new Map<RowKey, CellStyle>();
   }
@@ -27,7 +24,7 @@ export default class Column extends CellGroup<ColumnKey> {
     return this.size_;
   }
 
-  generateName(): string {
-    return LightsheetHelper.generateColumnLabel(this.position + 1);
+  isUnused(): boolean {
+    return super.isUnused() && this.label == undefined;
   }
 }

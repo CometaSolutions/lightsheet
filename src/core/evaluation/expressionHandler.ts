@@ -17,11 +17,11 @@ import {
   EvaluationResult,
 } from "./expressionHandler.types.ts";
 
-import LightsheetHelper from "../../utils/helpers.ts";
 import { Coordinate } from "../../utils/common.types.ts";
 import { CellReference } from "../structure/cell/types.cell.ts";
 import SheetHolder from "../structure/sheetHolder.ts";
 import { CellState } from "../structure/cell/cellState.ts";
+import LightsheetHelper from "../../utils/helpers.ts";
 
 const math = create({
   parseDependencies,
@@ -104,16 +104,30 @@ export default class ExpressionHandler {
     }
   }
 
-  updatePositionalReferences(from: Coordinate, to: Coordinate) {
+  updatePositionalReferences(
+    from: Coordinate,
+    to: Coordinate,
+    targetSheet: Sheet,
+  ): string {
+    if (!this.rawValue.startsWith("=")) return this.rawValue;
+
+    const fromLabel = targetSheet.getColumnLabel(from.column)!;
+    const toLabel = targetSheet.getColumnLabel(to.column)!;
+    return this.updateReferenceSymbols(fromLabel, toLabel, from.row, to.row);
+  }
+
+  updateReferenceSymbols(
+    fromLabel: string,
+    toLabel: string,
+    fromRow: number,
+    toRow: number,
+  ): string {
     if (!this.rawValue.startsWith("=")) return this.rawValue;
 
     const expression = this.rawValue.substring(1);
     const parseResult = math.parse(expression);
-
-    const fromSymbol =
-      LightsheetHelper.generateColumnLabel(from.column + 1) + (from.row + 1);
-    const toSymbol =
-      LightsheetHelper.generateColumnLabel(to.column + 1) + (to.row + 1);
+    const fromSymbol = fromLabel + (fromRow + 1);
+    const toSymbol = toLabel + (toRow + 1);
 
     // Update each symbol in the expression.
     const transform = parseResult.transform((node) =>
@@ -225,8 +239,8 @@ export default class ExpressionHandler {
         throw new Error("Invalid range: " + symbol);
       }
 
-      const start = this.parseSymbolToPosition(rangeParts[0]);
-      const end = this.parseSymbolToPosition(rangeParts[1]);
+      const start = this.parseSymbolToPosition(rangeParts[0], targetSheet);
+      const end = this.parseSymbolToPosition(rangeParts[1], targetSheet);
 
       const values: string[] = [];
       for (let i = start.rowIndex; i <= end.rowIndex; i++) {
@@ -242,7 +256,10 @@ export default class ExpressionHandler {
       return values;
     }
 
-    const { colIndex, rowIndex } = this.parseSymbolToPosition(symbol);
+    const { colIndex, rowIndex } = this.parseSymbolToPosition(
+      symbol,
+      targetSheet,
+    );
 
     const cellInfo = targetSheet.getCellInfoAt(colIndex, rowIndex);
 
@@ -256,7 +273,10 @@ export default class ExpressionHandler {
     return cellInfo?.resolvedValue ?? "";
   }
 
-  private parseSymbolToPosition(symbol: string): {
+  private parseSymbolToPosition(
+    symbol: string,
+    targetSheet: Sheet,
+  ): {
     colIndex: number;
     rowIndex: number;
   } {
@@ -267,7 +287,10 @@ export default class ExpressionHandler {
     }
 
     const columnStr = letterGroups[0];
-    const colIndex = LightsheetHelper.resolveColumnIndex(columnStr);
+    const colIndex =
+      targetSheet.getColumnByLabel(columnStr)?.position ??
+      LightsheetHelper.resolveColumnIndex(columnStr);
+
     if (colIndex == -1) {
       this.evaluationResult = CellState.INVALID_SYMBOL;
       throw new Error("Invalid symbol: " + symbol);

@@ -43,7 +43,6 @@ describe("Cell reference symbol tests", () => {
   });
 
   it("should insert a column without invalidating a cross-sheet reference", () => {
-    // Create a second sheet
     const sheet2 = new Sheet("Sheet2");
 
     sheet2.setCellAt(0, 0, "=Sheet!C1");
@@ -51,5 +50,12 @@ describe("Cell reference symbol tests", () => {
     sheet.insertColumn(0);
     expect(sheet2.getCellInfoAt(0, 0)!.rawValue).toBe("=Sheet!D1");
     expect(sheet2.getCellInfoAt(0, 1)!.rawValue).toBe("=Sheet!E1");
+  });
+
+  it("should insert a column without affecting a reference to a named column", () => {
+    sheet.setColumnLabel(2, "Third");
+    sheet.setCellAt(1, 0, "=Third1");
+    sheet.insertColumn(0);
+    expect(sheet.getCellInfoAt(2, 0)!.rawValue).toBe("=Third1");
   });
 });

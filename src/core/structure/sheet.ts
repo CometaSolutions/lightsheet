@@ -14,7 +14,11 @@ import CellStyle from "./cellStyle.ts";
 import CellGroup from "./group/cellGroup.ts";
 import Events from "../event/events.ts";
 import LightsheetEvent from "../event/event.ts";
-import { CoreSetCellPayload, UISetCellPayload } from "../event/events.types.ts";
+import {
+  CoreSetCellPayload,
+  SetColumnLabelPayload,
+  UISetCellPayload,
+} from "../event/events.types.ts";
 import EventType from "../event/eventType.ts";
 import { CellState } from "./cell/cellState.ts";
 import { EvaluationResult } from "../evaluation/expressionHandler.types.ts";
@@ -34,6 +38,7 @@ export default class Sheet {
   private readonly columns: Map<ColumnKey, Column>;
   private readonly rowPositions: Map<number, RowKey>;
   private readonly columnPositions: Map<number, ColumnKey>;
+  private readonly columnLabels: Map<string, ColumnKey>;
 
   private defaultStyle: any;
   private defaultWidth: number;
@@ -55,6 +60,7 @@ export default class Sheet {
 
     this.rowPositions = new Map<number, RowKey>();
     this.columnPositions = new Map<number, ColumnKey>();
+    this.columnLabels = new Map<string, ColumnKey>();
 
     this.defaultWidth = 40;
     this.defaultHeight = 20;
@@ -123,11 +129,12 @@ export default class Sheet {
 
     if (!fromPosition) return false;
 
-    if (!toPosition) {
-      toPosition = this.initializePosition(to.column, to.row);
-    } else {
+    if (toPosition) {
+      // Cell already exists - delete it first. This may invalidate the position as well.
       this.deleteCell(toPosition.columnKey!, toPosition.rowKey!);
     }
+
+    toPosition = this.initializePosition(to.column, to.row);
 
     const fromCol = this.columns.get(fromPosition.columnKey!)!;
     const fromRow = this.rows.get(fromPosition.rowKey!)!;
@@ -151,7 +158,10 @@ export default class Sheet {
       fromRow.cellFormatting.delete(fromCol.key);
     }
 
-    this.updateCellReferenceSymbols(this.cellData.get(cellKey)!, from, to);
+    this.updateReferenceSymbols(this.cellData.get(cellKey)!, {
+      from: from,
+      to: to,
+    });
     return true;
   }
 
@@ -183,6 +193,77 @@ export default class Sheet {
     return this.moveCellGroup(from, to, this.rows, this.rowPositions);
   }
 
+  public setColumnLabel(columnIndex: number, label: string | null): boolean {
+    const mathPattern = /[\d+-/*^.,<>!]/; // Try to catch symbols that would make expression parsing fail.
+    if (label == "") label = null;
+
+    if (label && mathPattern.test(label)) {
+      throw new Error(`Column label "${label}" contains invalid symbols!`);
+    }
+
+    if (label && LightsheetHelper.resolveColumnIndex(label) != -1) {
+      throw new Error(
+        `Column label "${label}" collides with default column names!`,
+      );
+    }
+
+    let targetKey = this.columnPositions.get(columnIndex);
+    if (!targetKey) {
+      if (!label) return false; // Target column doesn't exist and label is being cleared.
+      targetKey = this.initializeColumn(columnIndex);
+    }
+    const column = this.columns.get(targetKey)!;
+
+    if (
+      label &&
+      this.columnLabels.has(label) &&
+      this.columnLabels.get(label) != column.key
+    ) {
+      throw new Error(
+        `Column label "${label}" is already assigned to another column!`,
+      );
+    }
+
+    // Delete old entry.
+    if (column.label) this.columnLabels.delete(column.label);
+
+    const defaultLabel = LightsheetHelper.generateColumnLabel(columnIndex);
+    this.updateColumnLabelReferences(
+      column,
+      column.label ?? defaultLabel,
+      label ?? defaultLabel,
+    );
+
+    if (label == "" || label == null) {
+      label = defaultLabel;
+      column.label = undefined;
+      this.deleteColumnIfUnused(column); // Clearing label may lead to the column being unused.
+    } else if (label != defaultLabel) {
+      column.label = label;
+      this.columnLabels.set(label, column.key);
+    }
+
+    this.emitSetColumnLabelEvent(columnIndex, label);
+    return true;
+  }
+
+  public getColumnLabel(columnIndex: number): string {
+    const targetKey = this.columnPositions.get(columnIndex);
+    const columnName = targetKey ? this.columns.get(targetKey)!.label : null;
+    return columnName ?? LightsheetHelper.generateColumnLabel(columnIndex);
+  }
+
+  public getColumnByLabel(label: string): Column | null {
+    let targetKey = this.columnLabels.get(label);
+    if (!targetKey) {
+      const position = LightsheetHelper.resolveColumnIndex(label);
+      targetKey = this.columnPositions.get(position);
+      if (!targetKey) return null;
+    }
+
+    return this.columns.get(targetKey) ?? null;
+  }
+
   insertColumn(position: number): boolean {
     this.shiftCellGroups(
       position,
@@ -204,6 +285,7 @@ export default class Sheet {
   }
 
   deleteColumn(position: number): boolean {
+    this.setColumnLabel(position, null);
     return this.deleteCellGroup(position, this.columns, this.columnPositions);
   }
 
@@ -221,7 +303,8 @@ export default class Sheet {
 
     if (groupKey !== undefined) {
       const group = target.get(groupKey)!;
-      // Delete all cells in this group.
+
+      // Delete all cells in this group. This will also lead to the group being deleted as it'll be empty.
       for (const [oppositeKey] of group.cellIndex) {
         const keyPair = LightsheetHelper.getKeyPairFor(group, oppositeKey);
         this.deleteCell(keyPair.columnKey!, keyPair.rowKey!);
@@ -257,7 +340,7 @@ export default class Sheet {
         );
       }
       group.position = to;
-      this.updateReferenceSymbolsForGroup(group, from, to);
+      this.updateGroupPositionalRefs(group, from, to);
     }
 
     // We have to update all the positions to keep it consistent.
@@ -296,7 +379,7 @@ export default class Sheet {
       } else {
         targetPositions.set(currentPos, previousValue);
         const group = target.get(previousValue)!;
-        this.updateReferenceSymbolsForGroup(group, group.position, currentPos);
+        this.updateGroupPositionalRefs(group, group.position, currentPos);
         group.position = currentPos;
       }
 
@@ -315,11 +398,15 @@ export default class Sheet {
     return true;
   }
 
-  private updateReferenceSymbolsForGroup(
+  private updateGroupPositionalRefs(
     group: CellGroup<ColumnKey | RowKey>,
     from: number,
     to: number,
   ) {
+    if (group instanceof Column && group.label) {
+      return; // References to named columns are unaffected.
+    }
+
     for (const [oppositeKey, cellKey] of group!.cellIndex) {
       const cell = this.cellData.get(cellKey)!;
       if (!cell.referencesIn) continue; // Only cells with incoming references are affected.
@@ -341,14 +428,33 @@ export default class Sheet {
         row: group instanceof Row ? to : oppositeGroupPos!,
       };
 
-      this.updateCellReferenceSymbols(cell, fromCoord, toCoord);
+      this.updateReferenceSymbols(cell, { from: fromCoord, to: toCoord });
     }
   }
 
-  private updateCellReferenceSymbols(
+  private updateColumnLabelReferences(
+    column: Column,
+    fromLabel: string,
+    toLabel: string,
+  ) {
+    for (const [rowKey, cellKey] of column!.cellIndex) {
+      const cell = this.cellData.get(cellKey)!;
+      if (!cell.referencesIn) continue; // Only cells with incoming references are affected.
+
+      const fromRow = this.getRowIndex(rowKey)!;
+      const coordinate: Coordinate = { column: column.position, row: fromRow };
+      this.updateReferenceSymbols(
+        cell,
+        { from: coordinate, to: coordinate }, // Position does not change.
+        { from: fromLabel, to: toLabel },
+      );
+    }
+  }
+
+  private updateReferenceSymbols(
     cell: Cell,
-    from: Coordinate,
-    to: Coordinate,
+    position: { from: Coordinate; to: Coordinate },
+    label?: { from: string; to: string },
   ) {
     // Update reference symbols for all cell formulas that refer to the cell being moved.
     for (const [refCellKey, refInfo] of cell.referencesIn) {
@@ -356,7 +462,16 @@ export default class Sheet {
       const refCell = refSheet.cellData.get(refCellKey)!;
 
       const expr = new ExpressionHandler(refSheet, refInfo, refCell.rawValue);
-      const newValue = expr.updatePositionalReferences(from, to);
+
+      // Update either column label reference or positional reference depending on parameters.
+      const newValue = label
+        ? expr.updateReferenceSymbols(
+            label.from,
+            label.to,
+            position.from.row,
+            position.to.row,
+          )
+        : expr.updatePositionalReferences(position.from, position.to, this);
 
       // The formula may not change if the cell is being referenced indirectly through a range.
       if (refCell.rawValue === newValue) continue;
@@ -400,16 +515,9 @@ export default class Sheet {
     row.cellIndex.delete(col.key);
     row.cellFormatting.delete(col.key);
 
-    // Clean up empty rows and columns unless they're the first ones.
-    if (col.cellIndex.size == 0 && col.position != 0) {
-      this.columns.delete(colKey);
-      this.columnPositions.delete(col.position);
-    }
-
-    if (row.cellIndex.size == 0 && row.position != 0) {
-      this.rows.delete(rowKey);
-      this.rowPositions.delete(row.position);
-    }
+    // Clean up empty columns and rows if needed.
+    this.deleteColumnIfUnused(col);
+    this.deleteRowIfUnused(row);
 
     return true;
   }
@@ -679,6 +787,22 @@ export default class Sheet {
     return this.deleteCell(colKey, rowKey);
   }
 
+  private deleteColumnIfUnused(column: Column): boolean {
+    if (!column.isUnused()) return false;
+
+    this.columns.delete(column.key);
+    this.columnPositions.delete(column.position);
+    return true;
+  }
+
+  private deleteRowIfUnused(row: Row): boolean {
+    if (!row.isUnused()) return false;
+
+    this.rows.delete(row.key);
+    this.rowPositions.delete(row.position);
+    return true;
+  }
+
   /**
    * Update reference collections of cells for all cells whose values are affected.
    */
@@ -766,7 +890,6 @@ export default class Sheet {
 
   private initializePosition(colPos: number, rowPos: number): PositionInfo {
     let rowKey;
-    let colKey;
 
     // Create row and column if they don't exist yet.
     if (!this.rowPositions.has(rowPos)) {
@@ -779,18 +902,21 @@ export default class Sheet {
       rowKey = this.rowPositions.get(rowPos)!;
     }
 
-    if (!this.columnPositions.has(colPos)) {
-      // Create a new column
-      const col = new Column(this.defaultWidth, colPos);
-      this.columns.set(col.key, col);
-      this.columnPositions.set(colPos, col.key);
-
-      colKey = col.key;
-    } else {
-      colKey = this.columnPositions.get(colPos)!;
-    }
+    const colKey = this.initializeColumn(colPos);
 
     return { rowKey: rowKey, columnKey: colKey };
+  }
+
+  private initializeColumn(position: number): ColumnKey {
+    if (!this.columnPositions.has(position)) {
+      const col = new Column(this.defaultWidth, position);
+      this.columns.set(col.key, col);
+      this.columnPositions.set(position, col.key);
+
+      return col.key;
+    } else {
+      return this.columnPositions.get(position)!;
+    }
   }
 
   private emitSetCellEvent(colPos: number, rowPos: number, cell: Cell | null) {
@@ -809,9 +935,24 @@ export default class Sheet {
     this.events.emit(new LightsheetEvent(EventType.CORE_SET_CELL, payload));
   }
 
+  private emitSetColumnLabelEvent(columnIndex: number, label: string) {
+    const payload: SetColumnLabelPayload = {
+      columnIndex: columnIndex,
+      label: label,
+    };
+
+    this.events.emit(
+      new LightsheetEvent(EventType.CORE_SET_COLUMN_LABEL, payload),
+    );
+  }
+
   private registerEvents() {
     this.events.on(EventType.UI_SET_CELL, (event) =>
       this.handleUISetCell(event),
+    );
+
+    this.events.on(EventType.UI_SET_COLUMN_LABEL, (event) =>
+      this.handleSetColumnLabel(event),
     );
   }
 
@@ -822,5 +963,11 @@ export default class Sheet {
       payload.position.row,
       payload.rawValue,
     );
+  }
+
+  private handleSetColumnLabel(event: LightsheetEvent) {
+    const payload = event.payload as SetColumnLabelPayload;
+
+    this.setColumnLabel(payload.columnIndex, payload.label);
   }
 }

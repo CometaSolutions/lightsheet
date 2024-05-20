@@ -1,6 +1,7 @@
 import LightsheetEvent from "../core/event/event.ts";
 import {
   CoreSetCellPayload,
+  SetColumnLabelPayload,
   UISetCellPayload,
 } from "../core/event/events.types.ts";
 import EventType from "../core/event/eventType.ts";
@@ -224,18 +225,17 @@ export default class UI {
       "lightsheet_table_td",
     );
 
-    const newColumnNumber = this.getColumnCount() + 1;
-    const newHeaderValue =
-      LightsheetHelper.generateColumnLabel(newColumnNumber);
+    const columnIndex = this.getColumnCount();
+    const newHeaderValue = LightsheetHelper.generateColumnLabel(columnIndex);
 
     headerCellDom.textContent = newHeaderValue;
     headerCellDom.onclick = (e: MouseEvent) =>
-      this.onClickHeaderCell(e, newColumnNumber);
+      this.onClickHeaderCell(e, columnIndex);
 
     const rowCount = this.getRowCount();
     for (let rowIndex = 0; rowIndex < rowCount; rowIndex++) {
       const rowDom = this.tableBodyDom.children[rowIndex];
-      this.addCell(rowDom, newColumnNumber - 1, rowIndex);
+      this.addCell(rowDom, columnIndex, rowIndex);
     }
 
     this.tableHeadDom.children[0].appendChild(headerCellDom);
@@ -410,6 +410,10 @@ export default class UI {
     this.events.on(EventType.CORE_SET_CELL, (event) => {
       this.onCoreSetCell(event);
     });
+
+    this.events.on(EventType.CORE_SET_COLUMN_LABEL, (event) => {
+      this.onSetColumnLabel(event);
+    });
   }
 
   private onCoreSetCell(event: LightsheetEvent) {
@@ -441,6 +445,18 @@ export default class UI {
     }
 
     this.updateCellDisplay(inputEl);
+  }
+
+  private onSetColumnLabel(event: LightsheetEvent) {
+    const payload = event.payload as SetColumnLabelPayload;
+    const colCount = this.getColumnCount();
+    for (let i = 0; i < payload.columnIndex - colCount + 1; i++) {
+      this.addColumn();
+    }
+
+    const labelElement =
+      this.tableHeadDom.children[0].children[payload.columnIndex + 1];
+    labelElement.textContent = payload.label;
   }
 
   getColumnCount() {
