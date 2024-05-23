@@ -136,8 +136,23 @@ export default class UI {
         this.removeCellRangeSelection();
         this.removeCellSelection();
       } else if (e.key.startsWith("Arrow") && !inputSelected) {
-        // TODO navigation with arrow keys.
         e.preventDefault();
+        const currPos = this.getCellCoordinate(this.selectedCell)!;
+        const moveMap: Map<string, number[]> = new Map([
+          ["ArrowLeft", [-1, 0]],
+          ["ArrowRight", [1, 0]],
+          ["ArrowUp", [0, -1]],
+          ["ArrowDown", [0, 1]],
+        ]);
+        const shift = moveMap.get(e.key)!;
+        const newCell = document.getElementById(
+          this.getIndexedCellId(
+            shift[0] + currPos.column,
+            shift[1] + currPos.row,
+          ),
+        );
+        if (!newCell) return;
+        this.setSelectedCell(newCell);
       } else if (e.key !== "Enter" && e.target != this.formulaInput) {
         // Default to appending text to selected cell. Note that in this case Excel also clears the cell.
         selectedInput?.focus();
