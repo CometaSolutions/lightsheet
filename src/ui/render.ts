@@ -131,6 +131,10 @@ export default class UI {
 
       if (e.key === "Escape") {
         // Clear selection on esc.
+        if (e.target == selectedInput) {
+          selectedInput!.blur();
+          return;
+        }
         this.removeGroupSelection();
         this.removeCellRangeSelection();
         this.removeCellSelection();
