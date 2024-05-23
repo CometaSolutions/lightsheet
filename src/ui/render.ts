@@ -114,7 +114,6 @@ export default class UI {
   }
 
   private initializeKeyEvents() {
-    // TODO Is it bad to capture using document? Can this be narrowed?
     document.addEventListener("keydown", (e: KeyboardEvent) => {
       const targetEl = e.target as HTMLElement;
       const inputSelected = targetEl.classList.contains(
