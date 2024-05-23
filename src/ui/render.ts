@@ -138,7 +138,7 @@ export default class UI {
       } else if (e.key.startsWith("Arrow") && !inputSelected) {
         // TODO navigation with arrow keys.
         e.preventDefault();
-      } else if (e.key !== "Enter") {
+      } else if (e.key !== "Enter" && e.target != this.formulaInput) {
         // Default to appending text to selected cell. Note that in this case Excel also clears the cell.
         selectedInput?.focus();
       }
@@ -193,15 +193,23 @@ export default class UI {
     });
     this.formulaInput.addEventListener("keyup", (event) => {
       const newValue = this.formulaInput.value;
+      if (!this.selectedCell) return;
+
       if (event.key === "Enter") {
         const selected = this.getSelectedCellCoordinate();
         if (selected) {
           this.onUICellValueChange(newValue, selected.column, selected.row);
         }
         this.formulaInput.blur();
-        this.selectedCell?.classList.remove("lightsheet_table_selected_cell");
+        this.formulaInput.value = "";
+        this.removeCellSelection();
       }
     });
+
+    this.formulaInput.addEventListener("mousedown", (e) => {
+      if (!this.selectedCell) e.preventDefault();
+    });
+
     this.formulaInput.onblur = () => {
       const newValue = this.formulaInput.value;
       const selected = this.getSelectedCellCoordinate();
@@ -345,7 +353,10 @@ export default class UI {
         rowIndex,
       );
 
-    const onfocus = () => {
+    const selectCell = (e: Event) => {
+      if (this.selectedCell != cellDom || this.rangeSelectionEnd)
+        e.preventDefault();
+
       this.removeGroupSelection();
       this.removeCellRangeSelection();
 
@@ -357,13 +368,8 @@ export default class UI {
 
       if (this.formulaBarDom) {
         this.formulaInput.value = inputDom.getAttribute("rawValue")!;
+        this.formulaInput.blur();
       }
-    };
-
-    const selectCell = (e: Event) => {
-      if (this.selectedCell != cellDom || this.rangeSelectionEnd)
-        e.preventDefault();
-      onfocus();
     };
 
     cellDom.addEventListener("mousedown", selectCell);
@@ -372,7 +378,6 @@ export default class UI {
     inputDom.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
         this.removeCellSelection();
-        cellDom.classList.remove("lightsheet_table_selected_cell");
       }
     });
 
@@ -445,6 +450,9 @@ export default class UI {
     }
 
     this.updateCellDisplay(inputEl);
+    if (inputEl == this.getSelectedCellInput() && this.formulaBarDom) {
+      this.formulaInput.value = payload.rawValue;
+    }
   }
 
   private onSetColumnLabel(event: LightsheetEvent) {
@@ -702,12 +710,12 @@ export default class UI {
 
   private removeCellSelection() {
     const selection = this.getSelectedCellInput();
-    selection?.blur();
-    selection?.parentElement!.classList.remove(
-      "lightsheet_table_selected_cell",
-    );
+    if (!selection) return;
+    selection.blur();
+    selection.parentElement!.classList.remove("lightsheet_table_selected_cell");
     this.selectedCell = null;
-    if (selection) this.updateCellDisplay(selection);
+    this.updateCellDisplay(selection);
+    this.formulaInput.value = "";
   }
 
   private getSelectedCellInput(): HTMLInputElement | null {
