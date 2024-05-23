@@ -17,7 +17,7 @@ export default class UI {
   toolbarDom: HTMLElement | undefined;
   formulaBarDom!: HTMLElement | null;
   formulaInput!: HTMLInputElement;
-  selectedCellDisplay!: HTMLElement; // TODO Unused
+  selectedCellDisplay!: HTMLElement;
   tableHeadDom!: Element;
   tableBodyDom!: Element;
   selectedCell: HTMLElement | null = null;
@@ -725,6 +725,8 @@ export default class UI {
     this.updateCellDisplay(selInput);
     if (this.formulaBarDom) {
       this.formulaInput.value = selInput.getAttribute("rawValue")!;
+      const selectedPos = this.getSelectedCellCoordinate()!;
+      this.selectedCellDisplay.textContent = `${this.getColumnHeader(selectedPos.column)!.textContent}${selectedPos.row + 1}`;
       this.formulaInput.blur();
     }
   }
@@ -749,6 +751,10 @@ export default class UI {
 
   private getIndexedCellId(colIndex: number, rowIndex: number) {
     return `${this.sheetName}_${colIndex}_${rowIndex}`;
+  }
+
+  private getColumnHeader(index: number): Element | null {
+    return this.tableHeadDom.children[0].children[index + 1];
   }
 
   // TODO Consider locale?
