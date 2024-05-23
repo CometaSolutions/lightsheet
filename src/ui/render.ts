@@ -134,6 +134,9 @@ export default class UI {
         if (e.target == selectedInput) {
           selectedInput!.blur();
           return;
+        } else if (e.target == this.formulaInput) {
+          this.formulaInput.blur();
+          return;
         }
         this.removeGroupSelection();
         this.removeCellRangeSelection();
