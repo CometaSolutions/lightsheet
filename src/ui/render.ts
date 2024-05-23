@@ -360,7 +360,7 @@ export default class UI {
 
     inputDom.addEventListener("input", (e: Event) => {
       const newValue = (e.target as HTMLInputElement).value;
-      this.formulaInput.value = newValue;
+      if (this.formulaBarDom) this.formulaInput.value = newValue;
     });
 
     inputDom.onchange = (e: Event) =>
@@ -382,11 +382,6 @@ export default class UI {
       }
 
       this.setSelectedCell(cellDom);
-
-      if (this.formulaBarDom) {
-        this.formulaInput.value = inputDom.getAttribute("rawValue")!;
-        this.formulaInput.blur();
-      }
     };
 
     cellDom.addEventListener("mousedown", selectCell);
@@ -722,7 +717,13 @@ export default class UI {
     this.removeCellSelection();
     this.selectedCell = cell;
     cell.classList.add("lightsheet_table_selected_cell");
-    this.updateCellDisplay(this.getSelectedCellInput()!);
+
+    const selInput = this.getSelectedCellInput()!;
+    this.updateCellDisplay(selInput);
+    if (this.formulaBarDom) {
+      this.formulaInput.value = selInput.getAttribute("rawValue")!;
+      this.formulaInput.blur();
+    }
   }
 
   private removeCellSelection() {
@@ -732,7 +733,7 @@ export default class UI {
     selection.parentElement!.classList.remove("lightsheet_table_selected_cell");
     this.selectedCell = null;
     this.updateCellDisplay(selection);
-    this.formulaInput.value = "";
+    if (this.formulaBarDom) this.formulaInput.value = "";
   }
 
   private getSelectedCellInput(): HTMLInputElement | null {
